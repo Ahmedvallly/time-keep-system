@@ -1,0 +1,9 @@
+{
+  "appId": "com.timekeepsystem.mobile",
+  "appName": "Time Keep Mobile",
+  "webDir": "public",
+  "server": {
+    "url": "https://your-vercel-app.vercel.app/mobile.html",
+    "cleartext": false
+  }
+}

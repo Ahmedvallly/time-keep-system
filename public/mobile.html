@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Time Keep Mobile</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body class="mobile-body">
+    <main class="mobile-layout">
+      <section class="mobile-hero mobile-shell">
+        <p class="eyebrow">Phone control</p>
+        <h1>Live scans on your phone.</h1>
+        <p class="lede">
+          This screen uses the same server data as the desktop view. Open it on your phone to watch scans live, fix times, manage leave, and maintain holidays.
+        </p>
+        <div class="mobile-actions">
+          <a class="button secondary" href="/">Desktop view</a>
+          <label class="month-label" for="mobileMonthPicker">Month</label>
+          <input id="mobileMonthPicker" type="month">
+        </div>
+        <nav class="mobile-jump-links" aria-label="Quick sections">
+          <a href="#mobileScanSection">Scan</a>
+          <a href="#mobileManualSection">Times</a>
+          <a href="#mobileLeaveSection">Leave</a>
+          <a href="#mobileHolidaySection">Holidays</a>
+        </nav>
+      </section>
+
+      <section class="mobile-summary" id="mobileSummary"></section>
+
+      <section class="mobile-section-head">
+        <p class="eyebrow">Quick actions</p>
+      </section>
+
+      <section class="card mobile-card mobile-shell" id="mobileScanSection">
+        <div class="card-head mobile-card-head">
+          <h2>Quick scan</h2>
+          <p>Use the employee code from the fingerprint machine.</p>
+        </div>
+        <form id="mobileScanForm" class="stack-form">
+          <input id="mobileScanCode" name="employeeCode" placeholder="Employee code" autocomplete="off" required>
+          <button class="button" type="submit">Register scan</button>
+          <p id="mobileScanMessage" class="message"></p>
+        </form>
+      </section>
+
+      <section class="card mobile-card mobile-shell" id="mobileManualSection">
+        <div class="card-head mobile-card-head">
+          <h2>Add or fix a time</h2>
+          <p>Create a manual row from the phone.</p>
+        </div>
+        <form id="mobileManualForm" class="stack-form">
+          <select name="employeeCode" id="mobileEmployeeCode" required>
+            <option value="">Select worker</option>
+          </select>
+          <input name="timestamp" id="mobileTimestamp" type="datetime-local" required>
+          <select name="type" id="mobileType" required>
+            <option value="clock_in">Clock in</option>
+            <option value="break_out">Break out</option>
+            <option value="break_in">Break in</option>
+            <option value="clock_out">Clock out</option>
+          </select>
+          <button class="button" type="submit">Save row</button>
+          <p id="mobileManualMessage" class="message"></p>
+        </form>
+      </section>
+
+      <section class="mobile-section-head">
+        <p class="eyebrow">Leave and holidays</p>
+      </section>
+
+      <section class="card mobile-card mobile-shell">
+        <div class="card-head mobile-card-head">
+          <h2>Leave balances</h2>
+          <p>Annual leave balance for each worker.</p>
+        </div>
+        <div id="mobileLeaveBalances" class="mobile-list"></div>
+      </section>
+
+      <section class="card mobile-card mobile-shell" id="mobileLeaveSection">
+        <div class="card-head mobile-card-head">
+          <h2>Manage leave</h2>
+          <p>Add, edit, or remove worker leave from your phone.</p>
+        </div>
+        <form id="mobileLeaveForm" class="stack-form">
+          <select name="employeeCode" id="mobileLeaveEmployeeCode" required>
+            <option value="">Select worker</option>
+          </select>
+          <select name="leaveType" id="mobileLeaveType" required>
+            <option value="annual">Annual leave</option>
+            <option value="sick">Sick leave</option>
+            <option value="unpaid">Unpaid leave</option>
+          </select>
+          <input name="startDate" id="mobileLeaveStartDate" type="date" required>
+          <input name="endDate" id="mobileLeaveEndDate" type="date" required>
+          <textarea name="reason" id="mobileLeaveReason" rows="3" placeholder="Reason for leave"></textarea>
+          <button class="button" id="mobileLeaveSubmitButton" type="submit">Save leave</button>
+          <button class="button secondary" id="mobileLeaveCancelButton" type="button" hidden>Cancel edit</button>
+          <p id="mobileLeaveMessage" class="message"></p>
+        </form>
+        <div id="mobileLeaves" class="mobile-list"></div>
+      </section>
+
+      <section class="card mobile-card mobile-shell" id="mobileHolidaySection">
+        <div class="card-head mobile-card-head">
+          <h2>Public holidays</h2>
+          <p>Holidays do not count as absence or leave days.</p>
+        </div>
+        <form id="mobileHolidayForm" class="stack-form">
+          <input name="date" id="mobileHolidayDate" type="date" required>
+          <input name="name" id="mobileHolidayName" placeholder="Holiday name" required>
+          <button class="button" type="submit">Save holiday</button>
+          <p id="mobileHolidayMessage" class="message"></p>
+        </form>
+        <div id="mobileHolidays" class="mobile-list"></div>
+      </section>
+
+      <section class="mobile-section-head">
+        <p class="eyebrow">Live activity</p>
+      </section>
+
+      <section class="card mobile-card mobile-shell">
+        <div class="card-head mobile-card-head">
+          <h2>Today's activity</h2>
+          <p>Refreshes automatically every 10 seconds.</p>
+        </div>
+        <div id="mobileActivity" class="mobile-list"></div>
+      </section>
+
+      <section class="card mobile-card mobile-shell">
+        <div class="card-head mobile-card-head">
+          <h2>Edit time rows</h2>
+          <p>Use save or delete directly from the phone.</p>
+        </div>
+        <div id="mobileTimes" class="mobile-list"></div>
+      </section>
+    </main>
+
+    <script src="/mobile.js"></script>
+  </body>
+</html>
