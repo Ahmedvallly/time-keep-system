@@ -4,4 +4,6 @@
 .packages
 .pub/
 .pub-cache/
+.idea/
+*.iml
 build/
