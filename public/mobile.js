@@ -26,16 +26,25 @@ const timesNode = document.getElementById("mobileTimes");
 const leaveBalancesNode = document.getElementById("mobileLeaveBalances");
 const leavesNode = document.getElementById("mobileLeaves");
 const holidaysNode = document.getElementById("mobileHolidays");
+const tabButtons = Array.from(document.querySelectorAll("[data-tab]"));
+const tabPanels = Array.from(document.querySelectorAll("[data-tab-panel]"));
 
 let employees = [];
 let refreshTimer = null;
 let editingLeaveId = null;
+let activeTab = "scan";
 
 monthPicker.value = new Date().toISOString().slice(0, 7);
 timestampInput.value = nowLocalValue();
 leaveStartDate.value = todayDateValue();
 leaveEndDate.value = todayDateValue();
 holidayDate.value = todayDateValue();
+
+for (const button of tabButtons) {
+  button.addEventListener("click", () => {
+    setActiveTab(button.dataset.tab || "scan");
+  });
+}
 
 scanForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -379,6 +388,7 @@ function renderLeaves(rows) {
       leaveSubmitButton.textContent = "Update leave";
       leaveCancelButton.hidden = false;
       setMessage(leaveMessage, `Editing leave for ${row.employeeName}.`);
+      setActiveTab("leave");
       leaveForm.scrollIntoView({ behavior: "smooth", block: "start" });
     });
 
@@ -505,6 +515,22 @@ function resetLeaveForm() {
   leaveCancelButton.hidden = true;
 }
 
+function setActiveTab(tabName) {
+  activeTab = tabName;
+
+  for (const button of tabButtons) {
+    const isActive = button.dataset.tab === tabName;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+  }
+
+  for (const panel of tabPanels) {
+    const isActive = panel.dataset.tabPanel === tabName;
+    panel.classList.toggle("is-active", isActive);
+    panel.hidden = !isActive;
+  }
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -519,6 +545,7 @@ function escapeAttribute(value) {
 }
 
 refreshAll();
+setActiveTab(activeTab);
 refreshTimer = setInterval(refreshAll, 10000);
 
 window.addEventListener("beforeunload", () => {

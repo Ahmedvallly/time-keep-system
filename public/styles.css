@@ -298,9 +298,9 @@ tbody tr:last-child td {
 }
 
 .mobile-layout {
-  width: min(100% - 20px, 720px);
+  width: min(100% - 16px, 720px);
   margin: 0 auto;
-  padding: 10px 0 28px;
+  padding: 8px 0 24px;
 }
 
 .mobile-shell {
@@ -311,11 +311,11 @@ tbody tr:last-child td {
   position: sticky;
   top: 0;
   z-index: 20;
-  margin-bottom: 14px;
-  padding: 12px 12px 10px;
+  margin-bottom: 12px;
+  padding: 10px 10px 12px;
   border: 1px solid rgba(216, 204, 183, 0.9);
-  border-radius: 0 0 22px 22px;
-  background: rgba(255, 250, 241, 0.94);
+  border-radius: 18px;
+  background: rgba(255, 250, 241, 0.92);
   box-shadow: var(--shadow);
 }
 
@@ -330,8 +330,8 @@ tbody tr:last-child td {
 .mobile-topbar h1 {
   max-width: none;
   margin: 0;
-  font-size: clamp(1.25rem, 5vw, 1.6rem);
-  line-height: 1.05;
+  font-size: clamp(1.15rem, 5vw, 1.45rem);
+  line-height: 1.1;
 }
 
 .mobile-link {
@@ -362,18 +362,42 @@ tbody tr:last-child td {
 .mobile-quicknav {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 18px;
+  background: rgba(47, 93, 80, 0.06);
+  border: 1px solid rgba(47, 93, 80, 0.08);
 }
 
-.mobile-quicknav a {
+.mobile-tab {
+  min-height: 42px;
   padding: 10px 8px;
   border-radius: 14px;
-  text-decoration: none;
   color: var(--accent-strong);
-  background: rgba(47, 93, 80, 0.08);
-  border: 1px solid rgba(47, 93, 80, 0.12);
+  background: transparent;
+  border: 0;
   font-size: 0.85rem;
   text-align: center;
+  box-shadow: none;
+}
+
+.mobile-tab.is-active {
+  background: var(--accent);
+  color: #fffaf1;
+}
+
+.mobile-panel-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.mobile-panel {
+  display: none;
+  gap: 12px;
+}
+
+.mobile-panel.is-active {
+  display: grid;
 }
 
 .month-label {
@@ -425,8 +449,9 @@ tbody tr:last-child td {
 }
 
 .mobile-card {
-  padding: 16px;
+  padding: 14px;
   margin-bottom: 12px;
+  border-radius: 20px;
 }
 
 .mobile-card-head {
@@ -438,6 +463,14 @@ tbody tr:last-child td {
 .mobile-card-head h2 {
   margin-bottom: 0;
   font-size: 1.1rem;
+}
+
+.mobile-card-head p {
+  font-size: 0.92rem;
+}
+
+.mobile-feature-card {
+  background: linear-gradient(180deg, rgba(47, 93, 80, 0.12), rgba(255, 250, 241, 0.98));
 }
 
 .mobile-card .stack-form {
@@ -460,6 +493,10 @@ tbody tr:last-child td {
   gap: 10px;
 }
 
+.mobile-balance-grid {
+  grid-template-columns: 1fr;
+}
+
 .mobile-row {
   border-radius: 16px;
   padding: 12px 14px;
@@ -474,6 +511,7 @@ tbody tr:last-child td {
 .mobile-empty {
   margin: 4px 0 0;
   color: var(--muted);
+  font-size: 0.92rem;
 }
 
 .mobile-edit-card {
@@ -494,6 +532,7 @@ tbody tr:last-child td {
   padding: 12px;
   display: grid;
   gap: 10px;
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .mobile-card-topline {
@@ -562,8 +601,11 @@ tbody tr:last-child td {
   }
 
   .mobile-toolbar,
-  .mobile-summary,
   .mobile-metric-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .mobile-summary {
     grid-template-columns: 1fr 1fr;
   }
 
