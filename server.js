@@ -15,7 +15,7 @@ const LIVE_SUMMARY_FILE = path.join(DATA_DIR, "attendance-live-summary.csv");
 const EVENT_TYPES = ["clock_in", "break_out", "break_in", "clock_out"];
 const LEAVE_TYPES = ["annual", "sick", "unpaid"];
 const ANNUAL_LEAVE_DAYS = 18;
-const MOBILE_APP_VERSION = process.env.MOBILE_APP_VERSION || "2026.07.31.1";
+const MOBILE_APP_VERSION = process.env.MOBILE_APP_VERSION || "2026.07.31.2";
 let readyPromise;
 
 ensureDataFiles();
