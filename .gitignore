@@ -9,6 +9,7 @@ server.err.log
 
 TimeKeepMobile-debug.apk
 *.apk
+flutter-sdk/
 
 android/.gradle/
 android/build/

@@ -124,3 +124,44 @@ If you want direct Xero syncing later, the next phase should be:
 This repo includes a mobile web screen at `/mobile.html` that uses the same backend API as the desktop screen. That means if a worker scans in or out, you can see it on your phone immediately and edit times from your phone as well.
 
 There is also a debug Android APK wrapper in this repo. For shared data, the important part is that the wrapper loads the hosted `mobile.html` page from your Vercel deployment instead of a local server or the previous Render URL.
+
+## Flutter shell update flow
+
+This repo now includes a Flutter shell source app in [`flutter_app`](./flutter_app) that loads the hosted mobile web screen from the server.
+
+### Why this avoids APK rebuilds for normal changes
+
+If you change:
+
+- `public/mobile.html`
+- `public/mobile.js`
+- `public/styles.css`
+
+and then redeploy the server, installed phones can pick up the update automatically because the Flutter shell is only displaying the hosted page.
+
+The server exposes `/api/app-shell-config`, which returns:
+
+- the hosted mobile URL
+- a `version` value
+- a refresh interval
+
+When you deploy a new web version, bump `MOBILE_APP_VERSION` in the server environment. The installed Flutter shell polls that endpoint and reloads the hosted page when the version changes.
+
+### What still needs a new APK
+
+You still need to rebuild the APK if you change:
+
+- Flutter code in `flutter_app/lib`
+- Android permissions or native plugins
+- the compile-time `API_BASE_URL`
+
+### Flutter build steps
+
+Flutter is not installed in this local environment, so the Android project was not generated here. After installing Flutter:
+
+```powershell
+cd flutter_app
+flutter create . --platforms=android
+flutter pub get
+flutter build apk --dart-define=API_BASE_URL=https://YOUR-HOSTED-DOMAIN
+```

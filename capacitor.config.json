@@ -3,7 +3,7 @@
   "appName": "Time Keep Mobile",
   "webDir": "public",
   "server": {
-    "url": "https://your-vercel-app.vercel.app/mobile.html",
+    "url": "https://time-keep-system.onrender.com/mobile.html",
     "cleartext": false
   }
 }

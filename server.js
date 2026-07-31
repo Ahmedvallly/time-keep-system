@@ -15,6 +15,7 @@ const LIVE_SUMMARY_FILE = path.join(DATA_DIR, "attendance-live-summary.csv");
 const EVENT_TYPES = ["clock_in", "break_out", "break_in", "clock_out"];
 const LEAVE_TYPES = ["annual", "sick", "unpaid"];
 const ANNUAL_LEAVE_DAYS = 18;
+const MOBILE_APP_VERSION = process.env.MOBILE_APP_VERSION || "2026.07.31.1";
 let readyPromise;
 
 ensureDataFiles();
@@ -38,6 +39,10 @@ async function requestListener(req, res) {
         database: "mongodb",
         timestamp: new Date().toISOString()
       });
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/app-shell-config") {
+      return sendJson(res, 200, buildAppShellConfig(req));
     }
 
     if (req.method === "GET" && url.pathname === "/api/employees") {
@@ -262,6 +267,24 @@ function contentType(filePath) {
     default:
       return "application/octet-stream";
   }
+}
+
+function buildAppShellConfig(req) {
+  const requestUrl = new URL(req.url, `http://${req.headers.host}`);
+  const configuredBaseUrl = (process.env.PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
+  const baseUrl = configuredBaseUrl || `${requestUrl.protocol}//${req.headers.host}`;
+  const mobilePath = (process.env.MOBILE_WEB_PATH || "/mobile.html").trim();
+  const mobileUrl = mobilePath.startsWith("http://") || mobilePath.startsWith("https://")
+    ? mobilePath
+    : `${baseUrl}${mobilePath.startsWith("/") ? mobilePath : `/${mobilePath}`}`;
+
+  return {
+    appName: "Time Keep Mobile",
+    version: MOBILE_APP_VERSION,
+    mobileUrl,
+    refreshIntervalMs: 300000,
+    timestamp: new Date().toISOString()
+  };
 }
 
 function setCorsHeaders(res) {
