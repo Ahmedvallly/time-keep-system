@@ -319,8 +319,25 @@ Future<AppShellConfig> fetchAppShellConfig() async {
     if (config.mobileUrl.isEmpty) {
       throw const FormatException('The app shell config did not include a mobile URL.');
     }
-    return config;
+    return AppShellConfig(
+      version: config.version,
+      mobileUrl: normalizeMobileUrl(config.mobileUrl),
+      refreshIntervalMs: config.refreshIntervalMs,
+    );
   } finally {
     client.close(force: true);
   }
+}
+
+String normalizeMobileUrl(String url) {
+  final uri = Uri.parse(url);
+  if (uri.scheme == 'http' && !_isLocalHost(uri.host)) {
+    return uri.replace(scheme: 'https').toString();
+  }
+  return url;
+}
+
+bool _isLocalHost(String host) {
+  final value = host.toLowerCase();
+  return value == 'localhost' || value == '127.0.0.1' || value == '::1';
 }

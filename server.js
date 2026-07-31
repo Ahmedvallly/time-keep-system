@@ -270,7 +270,8 @@ function contentType(filePath) {
 }
 
 function buildAppShellConfig(req) {
-  const requestUrl = new URL(req.url, `http://${req.headers.host}`);
+  const requestProtocol = resolveExternalProtocol(req);
+  const requestUrl = new URL(req.url, `${requestProtocol}://${req.headers.host}`);
   const configuredBaseUrl = (process.env.PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
   const baseUrl = configuredBaseUrl || `${requestUrl.protocol}//${req.headers.host}`;
   const mobilePath = (process.env.MOBILE_WEB_PATH || "/mobile.html").trim();
@@ -285,6 +286,28 @@ function buildAppShellConfig(req) {
     refreshIntervalMs: 300000,
     timestamp: new Date().toISOString()
   };
+}
+
+function resolveExternalProtocol(req) {
+  const forwardedProtoHeader = String(req.headers["x-forwarded-proto"] || "")
+    .split(",")[0]
+    .trim()
+    .toLowerCase();
+
+  if (forwardedProtoHeader === "http" || forwardedProtoHeader === "https") {
+    return forwardedProtoHeader;
+  }
+
+  const host = String(req.headers.host || "").split(":")[0].toLowerCase();
+  if (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "::1"
+  ) {
+    return "http";
+  }
+
+  return "https";
 }
 
 function setCorsHeaders(res) {
