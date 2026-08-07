@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
 
 const String defaultApiBaseUrl = String.fromEnvironment(
   'API_BASE_URL',
@@ -52,34 +54,8 @@ class _AppShellScreenState extends State<AppShellScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (_) {
-            if (mounted) {
-              setState(() {
-                _isLoading = true;
-              });
-            }
-          },
-          onPageFinished: (_) {
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-              });
-            }
-          },
-          onWebResourceError: (error) {
-            if (mounted) {
-              setState(() {
-                _error = error.description;
-                _isLoading = false;
-              });
-            }
-          },
-        ),
-      );
+    _controller = WebViewController();
+    _configureWebViewController(_controller);
 
     unawaited(_loadInitialConfig());
   }
@@ -92,6 +68,7 @@ class _AppShellScreenState extends State<AppShellScreen> {
 
   Future<void> _loadInitialConfig() async {
     try {
+      await _ensureCameraPermission();
       final config = await fetchAppShellConfig();
       await _controller.loadRequest(Uri.parse(config.mobileUrl));
 
@@ -170,6 +147,7 @@ class _AppShellScreenState extends State<AppShellScreen> {
     });
 
     try {
+      await _ensureCameraPermission();
       final nextConfig = await fetchAppShellConfig();
       await _controller.loadRequest(Uri.parse(nextConfig.mobileUrl));
       if (!mounted) {
@@ -190,6 +168,67 @@ class _AppShellScreenState extends State<AppShellScreen> {
         _isLoading = false;
       });
     }
+  }
+
+  void _configureWebViewController(WebViewController controller) {
+    controller
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          onPageStarted: (_) {
+            if (mounted) {
+              setState(() {
+                _isLoading = true;
+              });
+            }
+          },
+          onPageFinished: (_) {
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+              });
+            }
+          },
+          onWebResourceError: (error) {
+            if (mounted) {
+              setState(() {
+                _error = error.description;
+                _isLoading = false;
+              });
+            }
+          },
+        ),
+      );
+
+    final platformController = controller.platform;
+    if (platformController is AndroidWebViewController) {
+      AndroidWebViewController.enableDebugging(true);
+      platformController.setMediaPlaybackRequiresUserGesture(false);
+      platformController.setOnPlatformPermissionRequest(
+        (PlatformWebViewPermissionRequest request) async {
+          final status = await _ensureCameraPermission();
+          if (status.isGranted) {
+            await request.grant();
+            return;
+          }
+          await request.deny();
+        },
+      );
+    }
+  }
+
+  Future<PermissionStatus> _ensureCameraPermission() async {
+    var status = await Permission.camera.status;
+    if (status.isGranted) {
+      return status;
+    }
+
+    status = await Permission.camera.request();
+    if (status.isGranted) {
+      return status;
+    }
+
+    throw Exception('Camera permission was denied. Allow camera access for the face scanner.');
   }
 
   @override
