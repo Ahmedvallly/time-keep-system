@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Time Keep Admin</title>
-    <link rel="stylesheet" href="/styles.css?v=2026.08.07.8">
+    <link rel="stylesheet" href="/styles.css?v=2026.08.07.9">
   </head>
   <body class="mobile-body">
     <main class="mobile-layout">
@@ -69,6 +69,7 @@
                     <div class="mobile-camera-target"></div>
                   </div>
                 </div>
+                <button class="button secondary" id="mobileCaptureFaceButton" type="button">Capture face</button>
                 <button class="button secondary" id="mobileWorkerCameraCloseButton" type="button">Close photo</button>
               </div>
               <canvas id="mobileWorkerCanvas" hidden></canvas>
@@ -77,7 +78,6 @@
                 <input name="code" id="mobileWorkerCode" placeholder="Employee code" required>
                 <input name="monthlyTargetHours" id="mobileWorkerTargetHours" type="number" min="0" step="0.25" value="176" required>
                 <textarea name="notes" id="mobileWorkerNotes" rows="3" placeholder="Notes"></textarea>
-                <button class="button secondary" id="mobileCaptureFaceButton" type="button">Capture face</button>
                 <div id="mobileFacePreview" class="mobile-face-preview mobile-empty">No face captured yet.</div>
                 <button class="button" type="submit">Save worker</button>
                 <p id="mobileWorkerMessage" class="message"></p>
@@ -177,6 +177,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <script src="/mobile-admin.js?v=2026.08.07.8"></script>
+    <script src="/mobile-admin.js?v=2026.08.07.9"></script>
   </body>
 </html>

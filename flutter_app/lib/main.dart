@@ -234,16 +234,6 @@ class _AppShellScreenState extends State<AppShellScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Time Keep Mobile'),
-        actions: [
-          IconButton(
-            tooltip: 'Refresh',
-            onPressed: _forceRefresh,
-            icon: const Icon(Icons.refresh),
-          ),
-        ],
-      ),
       body: Stack(
         children: [
           if (_error != null && _config == null)
@@ -255,20 +245,21 @@ class _AppShellScreenState extends State<AppShellScreen> {
             WebViewWidget(controller: _controller),
           if (_isLoading)
             const LinearProgressIndicator(minHeight: 3),
-        ],
-      ),
-      bottomNavigationBar: _config == null
-          ? null
-          : SafeArea(
+          SafeArea(
+            child: Align(
+              alignment: Alignment.topRight,
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-                child: Text(
-                  'Live shell version ${_config!.version}',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall,
+                padding: const EdgeInsets.all(12),
+                child: IconButton.filledTonal(
+                  tooltip: 'Refresh',
+                  onPressed: _forceRefresh,
+                  icon: const Icon(Icons.refresh),
                 ),
               ),
             ),
+          ),
+        ],
+      ),
     );
   }
 }
