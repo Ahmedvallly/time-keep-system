@@ -9,12 +9,6 @@ const adminApp = document.getElementById("mobileAdminApp");
 const topbarNode = document.querySelector(".mobile-topbar");
 const loginForm = document.getElementById("mobileAdminLoginForm");
 const loginMessage = document.getElementById("mobileAdminLoginMessage");
-const logoutButton = document.getElementById("mobileAdminLogoutButton");
-const topbarOpenButton = document.getElementById("mobileTopbarOpenButton");
-const topbarCloseButton = document.getElementById("mobileTopbarCloseButton");
-const topbarCollapsedBar = document.getElementById("mobileTopbarCollapsedBar");
-const topbarMain = document.getElementById("mobileTopbarMain");
-const topbarBody = document.getElementById("mobileTopbarBody");
 const monthPicker = document.getElementById("mobileMonthPicker");
 const summaryNode = document.getElementById("mobileSummary");
 const quickActionsNode = document.getElementById("mobileQuickActions");
@@ -67,7 +61,6 @@ const holidaysNode = document.getElementById("mobileHolidays");
 const tabButtons = Array.from(document.querySelectorAll(".mobile-topbar [data-tab]"));
 const bottomTabButtons = Array.from(document.querySelectorAll(".mobile-bottom-tab"));
 const tabPanels = Array.from(document.querySelectorAll("[data-tab-panel]"));
-const TOPBAR_COLLAPSED_KEY = "time-keep-mobile-topbar-collapsed";
 
 let employees = [];
 let refreshTimer = null;
@@ -80,7 +73,6 @@ let capturedFacePreviewUrl = "";
 let latestTimeRows = [];
 let latestHolidayRows = [];
 let latestDashboardWorkers = [];
-let topbarCollapsed = sessionStorage.getItem(TOPBAR_COLLAPSED_KEY) !== "0";
 let workerCameraOpen = false;
 let openTimeWorkerKeys = new Set();
 let openTimeDayKeys = new Set();
@@ -118,13 +110,6 @@ loginForm.addEventListener("submit", async (event) => {
   await unlockAdmin();
 });
 
-logoutButton.addEventListener("click", () => {
-  sessionStorage.removeItem(ADMIN_SESSION_KEY);
-  lockAdmin();
-});
-
-topbarOpenButton.addEventListener("click", () => setTopbarCollapsed(false));
-topbarCloseButton.addEventListener("click", () => setTopbarCollapsed(true));
 workerCameraToggleButton.addEventListener("click", () => {
   setWorkerCameraOpen(true);
   ensureWorkerCamera().catch((error) => {
@@ -361,7 +346,6 @@ async function unlockAdmin() {
   adminApp.hidden = false;
   adminApp.style.display = "";
   adminApp.setAttribute("aria-hidden", "false");
-  applyTopbarState();
   setWorkerCameraOpen(false);
   renderTimeViewButtons();
   renderTimeEditModeButton();
@@ -1185,19 +1169,6 @@ function setActiveTab(tabName) {
   } else {
     stopVideoStream(workerVideo);
   }
-}
-
-function applyTopbarState() {
-  topbarCollapsedBar.hidden = !topbarCollapsed;
-  topbarMain.hidden = topbarCollapsed;
-  topbarBody.hidden = topbarCollapsed;
-  topbarNode.classList.toggle("is-collapsed", topbarCollapsed);
-}
-
-function setTopbarCollapsed(nextValue) {
-  topbarCollapsed = Boolean(nextValue);
-  sessionStorage.setItem(TOPBAR_COLLAPSED_KEY, topbarCollapsed ? "1" : "0");
-  applyTopbarState();
 }
 
 function setWorkerCameraOpen(nextValue) {
