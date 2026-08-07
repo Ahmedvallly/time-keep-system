@@ -387,9 +387,7 @@ tbody tr:last-child td {
 }
 
 .mobile-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
+  position: static;
   margin-bottom: 12px;
   padding: 10px 10px 12px;
   border: 1px solid rgba(216, 204, 183, 0.9);
@@ -417,8 +415,8 @@ tbody tr:last-child td {
 
 .mobile-topbar-main {
   display: flex;
-  align-items: start;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: flex-end;
   gap: 12px;
   margin-bottom: 10px;
 }
