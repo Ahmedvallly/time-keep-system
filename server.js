@@ -20,7 +20,7 @@ const EMPLOYEE_ROLES = {
   driver: { label: "Driver", monthlyTargetHours: 210 },
   admin: { label: "Admin", monthlyTargetHours: 176 }
 };
-const MOBILE_APP_VERSION = process.env.MOBILE_APP_VERSION || "2026.08.07.14";
+const MOBILE_APP_VERSION = process.env.MOBILE_APP_VERSION || "2026.08.07.15";
 let readyPromise;
 
 ensureDataFiles();
