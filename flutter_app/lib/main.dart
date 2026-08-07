@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_tts/flutter_tts.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:webview_flutter_android/webview_flutter_android.dart';
@@ -45,6 +46,7 @@ class AppShellScreen extends StatefulWidget {
 
 class _AppShellScreenState extends State<AppShellScreen> {
   late final WebViewController _controller;
+  late final FlutterTts _flutterTts;
   Timer? _versionTimer;
   AppShellConfig? _config;
   Object? _error;
@@ -54,8 +56,10 @@ class _AppShellScreenState extends State<AppShellScreen> {
   @override
   void initState() {
     super.initState();
+    _flutterTts = FlutterTts();
     _controller = WebViewController();
     _configureWebViewController(_controller);
+    unawaited(_configureTextToSpeech());
 
     unawaited(_loadInitialConfig());
   }
@@ -63,6 +67,7 @@ class _AppShellScreenState extends State<AppShellScreen> {
   @override
   void dispose() {
     _versionTimer?.cancel();
+    unawaited(_flutterTts.stop());
     super.dispose();
   }
 
@@ -173,6 +178,12 @@ class _AppShellScreenState extends State<AppShellScreen> {
   void _configureWebViewController(WebViewController controller) {
     controller
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      ..addJavaScriptChannel(
+        'nativeTts',
+        onMessageReceived: (JavaScriptMessage message) {
+          unawaited(_speakGreeting(message.message));
+        },
+      )
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (_) {
@@ -229,6 +240,24 @@ class _AppShellScreenState extends State<AppShellScreen> {
     }
 
     throw Exception('Camera permission was denied. Allow camera access for the face scanner.');
+  }
+
+  Future<void> _configureTextToSpeech() async {
+    await _flutterTts.awaitSpeakCompletion(true);
+    await _flutterTts.setLanguage('en-ZA');
+    await _flutterTts.setPitch(1.0);
+    await _flutterTts.setSpeechRate(0.45);
+    await _flutterTts.setVolume(1.0);
+  }
+
+  Future<void> _speakGreeting(String message) async {
+    final text = message.trim();
+    if (text.isEmpty) {
+      return;
+    }
+
+    await _flutterTts.stop();
+    await _flutterTts.speak(text);
   }
 
   @override

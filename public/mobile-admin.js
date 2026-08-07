@@ -26,12 +26,21 @@ const workerForm = document.getElementById("mobileWorkerForm");
 const workerMessage = document.getElementById("mobileWorkerMessage");
 const captureFaceButton = document.getElementById("mobileCaptureFaceButton");
 const facePreview = document.getElementById("mobileFacePreview");
+const workerRoleInput = document.getElementById("mobileWorkerRole");
+const workerTargetHoursInput = document.getElementById("mobileWorkerTargetHours");
+const undoWorkerDeleteButton = document.getElementById("mobileUndoWorkerDeleteButton");
 const workersNode = document.getElementById("mobileWorkers");
 const manualForm = document.getElementById("mobileManualForm");
 const employeeSelect = document.getElementById("mobileEmployeeCode");
 const timestampInput = document.getElementById("mobileTimestamp");
 const manualMessage = document.getElementById("mobileManualMessage");
 const timesFilterInput = document.getElementById("mobileTimesFilter");
+const timeViewButtons = Array.from(document.querySelectorAll("[data-time-view]"));
+const timeEditModeButton = document.getElementById("mobileTimeEditModeButton");
+const monthlyCsvLink = document.getElementById("mobileMonthlyCsvLink");
+const monthlyPdfLink = document.getElementById("mobileMonthlyPdfLink");
+const timeDeleteMessage = document.getElementById("mobileTimeDeleteMessage");
+const undoTimeDeleteButton = document.getElementById("mobileUndoTimeDeleteButton");
 const leaveForm = document.getElementById("mobileLeaveForm");
 const leaveEmployeeCode = document.getElementById("mobileLeaveEmployeeCode");
 const leaveType = document.getElementById("mobileLeaveType");
@@ -66,12 +75,18 @@ let topbarCollapsed = sessionStorage.getItem(TOPBAR_COLLAPSED_KEY) !== "0";
 let workerCameraOpen = false;
 let openTimeWorkerKeys = new Set();
 let openTimeDayKeys = new Set();
+let timeViewMode = "today";
+let timeEditModeEnabled = false;
+let lastDeletedWorkerPayload = null;
+let lastDeletedTimePayload = null;
 
 monthPicker.value = new Date().toISOString().slice(0, 7);
 timestampInput.value = nowLocalValue();
 leaveStartDate.value = todayDateValue();
 leaveEndDate.value = todayDateValue();
 holidayDate.value = todayDateValue();
+workerRoleInput.value = "general";
+workerTargetHoursInput.value = String(rolePresetHours(workerRoleInput.value));
 
 lockAdmin();
 
@@ -119,6 +134,65 @@ timesFilterInput.addEventListener("input", () => {
   renderTimes(latestTimeRows);
 });
 
+workerRoleInput.addEventListener("change", () => {
+  workerTargetHoursInput.value = String(rolePresetHours(workerRoleInput.value));
+});
+
+for (const button of timeViewButtons) {
+  button.addEventListener("click", () => {
+    setTimeViewMode(button.dataset.timeView || "today");
+  });
+}
+
+timeEditModeButton.addEventListener("click", () => {
+  timeEditModeEnabled = !timeEditModeEnabled;
+  renderTimeEditModeButton();
+  setMessage(
+    manualMessage,
+    timeEditModeEnabled
+      ? "Edit mode is on. Time rows stay open while you update them."
+      : "Edit mode is off. Normal auto refresh resumed."
+  );
+});
+
+undoWorkerDeleteButton.addEventListener("click", async () => {
+  if (!lastDeletedWorkerPayload) {
+    return;
+  }
+
+  try {
+    const employee = await sendJson("/api/employees/restore", {
+      method: "POST",
+      body: lastDeletedWorkerPayload
+    });
+    lastDeletedWorkerPayload = null;
+    undoWorkerDeleteButton.hidden = true;
+    setMessage(workerMessage, `Restored ${employee.name}.`);
+    await refreshAll();
+  } catch (error) {
+    setMessage(workerMessage, error.message, true);
+  }
+});
+
+undoTimeDeleteButton.addEventListener("click", async () => {
+  if (!lastDeletedTimePayload) {
+    return;
+  }
+
+  try {
+    const scan = await sendJson("/api/scans/restore", {
+      method: "POST",
+      body: lastDeletedTimePayload
+    });
+    lastDeletedTimePayload = null;
+    undoTimeDeleteButton.hidden = true;
+    setMessage(timeDeleteMessage, `Restored ${scan.employeeName} at ${formatDateTime(scan.timestamp)}.`);
+    await refreshAll();
+  } catch (error) {
+    setMessage(timeDeleteMessage, error.message, true);
+  }
+});
+
 captureFaceButton.addEventListener("click", async () => {
   captureFaceButton.disabled = true;
   setMessage(workerMessage, "Capturing face. Hold still and keep one face in the frame...");
@@ -155,6 +229,7 @@ workerForm.addEventListener("submit", async (event) => {
       body: {
         name: formData.get("name"),
         code: formData.get("code"),
+        role: formData.get("role"),
         monthlyTargetHours: Number(formData.get("monthlyTargetHours")),
         notes: formData.get("notes"),
         faceDescriptor: capturedFaceDescriptor
@@ -162,7 +237,8 @@ workerForm.addEventListener("submit", async (event) => {
     });
 
     workerForm.reset();
-    document.getElementById("mobileWorkerTargetHours").value = "176";
+    workerRoleInput.value = "general";
+    workerTargetHoursInput.value = String(rolePresetHours("general"));
     capturedFaceDescriptor = [];
     capturedFacePreviewUrl = "";
     renderFacePreview();
@@ -250,7 +326,10 @@ holidayForm.addEventListener("submit", async (event) => {
   }
 });
 
-monthPicker.addEventListener("change", refreshAll);
+monthPicker.addEventListener("change", () => {
+  updateMonthExportLinks();
+  refreshAll();
+});
 
 async function unlockAdmin() {
   authShell.hidden = true;
@@ -260,11 +339,17 @@ async function unlockAdmin() {
   adminApp.setAttribute("aria-hidden", "false");
   applyTopbarState();
   setWorkerCameraOpen(false);
+  renderTimeViewButtons();
+  renderTimeEditModeButton();
+  updateMonthExportLinks();
   await refreshAll();
   setActiveTab(activeTab);
   renderFacePreview();
   if (!refreshTimer) {
     refreshTimer = setInterval(() => {
+      if (timeEditModeEnabled && activeTab === "times") {
+        return;
+      }
       refreshAll().catch(() => {});
     }, 10000);
   }
@@ -306,6 +391,7 @@ async function loadTimes() {
   const response = await fetch(`/api/times?month=${monthPicker.value}`);
   const data = await response.json();
   latestTimeRows = data.rows;
+  updateMonthExportLinks();
   renderTimes(latestTimeRows);
 }
 
@@ -396,6 +482,7 @@ function renderWorkers() {
       </div>
       <div class="mobile-detail-list">
         <p><span>Code</span>${escapeHtml(employee.code)}</p>
+        <p><span>Role</span>${escapeHtml(formatWorkerRole(employee.role))}</p>
         <p><span>Target hours</span>${Number(employee.monthlyTargetHours || 0).toFixed(2)}</p>
         <p><span>Notes</span>${escapeHtml(employee.notes || "No notes")}</p>
       </div>
@@ -407,11 +494,13 @@ function renderWorkers() {
     article.querySelector('[data-action="delete"]').addEventListener("click", async () => {
       try {
         const response = await fetch(`/api/employees/${encodeURIComponent(employee.code)}`, { method: "DELETE" });
+        const data = await response.json();
         if (!response.ok) {
-          const data = await response.json();
           throw new Error(data.error || "Delete failed.");
         }
-        setMessage(workerMessage, `Deleted ${employee.name}.`);
+        lastDeletedWorkerPayload = data;
+        undoWorkerDeleteButton.hidden = false;
+        setMessage(workerMessage, `Deleted ${employee.name}. Tap undo if needed.`);
         await refreshAll();
       } catch (error) {
         setMessage(workerMessage, error.message, true);
@@ -425,6 +514,8 @@ function renderWorkers() {
 function renderTimes(rows) {
   latestTimeRows = rows;
   captureOpenTimePanels();
+  renderTimeViewButtons();
+  renderTimeEditModeButton();
 
   if (rows.length === 0) {
     timesNode.innerHTML = `<p class="mobile-empty">No time rows for this month.</p>`;
@@ -459,9 +550,7 @@ function renderTimes(rows) {
     <div class="mobile-time-table">
       <div class="mobile-time-table-head">
         <span>Worker</span>
-        <span>Today</span>
-        <span>Week +/-</span>
-        <span>Month +/-</span>
+        ${renderTimeTableHead()}
       </div>
       <div class="mobile-time-table-body"></div>
     </div>
@@ -479,12 +568,22 @@ function renderTimes(rows) {
           <strong>${escapeHtml(summary.employeeName)}</strong>
           <small>${escapeHtml(summary.employeeCode)} - ${escapeHtml(summary.workedDaysLabel)}</small>
         </span>
-        <span>${escapeHtml(formatHours(summary.todayWorkedHours))}</span>
-        <span class="${summary.currentWeekBalanceHours < 0 ? "negative" : "positive"}">${escapeHtml(formatSignedHours(summary.currentWeekBalanceHours))}</span>
-        <span class="${summary.monthBalanceHours < 0 ? "negative" : "positive"}">${escapeHtml(formatSignedHours(summary.monthBalanceHours))}</span>
+        ${renderTimeSummaryColumns(summary)}
       </summary>
       <div class="mobile-time-worker-panel">
         <div class="mobile-metric-grid mobile-time-summary mobile-time-summary-wide">
+          <div>
+            <label>Today status</label>
+            <strong>${escapeHtml(summary.todayStatus)}</strong>
+          </div>
+          <div>
+            <label>Today worked</label>
+            <strong>${escapeHtml(formatHours(summary.todayWorkedHours))}</strong>
+          </div>
+          <div>
+            <label>Today +/-</label>
+            <strong class="${summary.todayBalanceHours < 0 ? "negative" : "positive"}">${escapeHtml(formatSignedHours(summary.todayBalanceHours))}</strong>
+          </div>
           <div>
             <label>Month target</label>
             <strong>${escapeHtml(formatHours(summary.monthTargetHours))}</strong>
@@ -657,7 +756,11 @@ function buildWorkerTimeSummary(worker, rows, month, holidays) {
     const today = todayDateValue();
     return today >= week.start && today <= week.end;
   }) || monthWeeks[monthWeeks.length - 1] || { targetHours: 0, workedHours: 0, balanceHours: 0 };
-  const todaySummary = days.find((day) => day.date === todayDateValue()) || { workedHours: 0 };
+  const todaySummary = days.find((day) => day.date === todayDateValue()) || {
+    workedHours: 0,
+    targetHours: dailyTargetHours,
+    rows: []
+  };
 
   return {
     employeeCode: worker.code,
@@ -667,6 +770,9 @@ function buildWorkerTimeSummary(worker, rows, month, holidays) {
     monthWorkedHours,
     monthBalanceHours,
     todayWorkedHours: todaySummary.workedHours,
+    todayTargetHours: Number(todaySummary.targetHours || 0),
+    todayBalanceHours: roundToTwo(Number(todaySummary.workedHours || 0) - Number(todaySummary.targetHours || 0)),
+    todayStatus: deriveTodayStatus(todaySummary.rows || []),
     currentWeekTargetHours: currentWeek.targetHours,
     currentWeekWorkedHours: currentWeek.workedHours,
     currentWeekBalanceHours: currentWeek.balanceHours,
@@ -745,14 +851,16 @@ function createEditableTimeRow(row, employeeOptions, eventOptions) {
   rowCard.querySelector('[data-action="delete"]').addEventListener("click", async () => {
     try {
       const response = await fetch(`/api/scans/${row.id}`, { method: "DELETE" });
+      const data = await response.json();
       if (!response.ok) {
-        const data = await response.json();
         throw new Error(data.error || "Delete failed.");
       }
-      setMessage(manualMessage, "Time row deleted.");
+      lastDeletedTimePayload = data;
+      undoTimeDeleteButton.hidden = false;
+      setMessage(timeDeleteMessage, "Time row deleted. Tap undo if needed.");
       await refreshAll();
     } catch (error) {
-      setMessage(manualMessage, error.message, true);
+      setMessage(timeDeleteMessage, error.message, true);
     }
   });
 
@@ -1122,6 +1230,17 @@ function formatLeaveType(type) {
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
+function formatWorkerRole(role) {
+  const normalized = String(role || "general").trim().toLowerCase();
+  if (normalized === "driver") {
+    return "Driver";
+  }
+  if (normalized === "admin") {
+    return "Admin";
+  }
+  return "General";
+}
+
 function formatDateTime(value) {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
@@ -1156,6 +1275,79 @@ function formatSignedHours(value) {
 
 function formatShortDateRange(start, end) {
   return `${formatDateLabel(start)} to ${formatDateLabel(end)}`;
+}
+
+function renderTimeTableHead() {
+  if (timeViewMode === "week") {
+    return `
+      <span>Worked</span>
+      <span>Target</span>
+      <span>+/- Week</span>
+    `;
+  }
+
+  if (timeViewMode === "month") {
+    return `
+      <span>Worked</span>
+      <span>Target</span>
+      <span>+/- Month</span>
+    `;
+  }
+
+  return `
+    <span>Status</span>
+    <span>Worked</span>
+    <span>+/- Today</span>
+  `;
+}
+
+function renderTimeSummaryColumns(summary) {
+  if (timeViewMode === "week") {
+    return `
+      <span>${escapeHtml(formatHours(summary.currentWeekWorkedHours))}</span>
+      <span>${escapeHtml(formatHours(summary.currentWeekTargetHours))}</span>
+      <span class="${summary.currentWeekBalanceHours < 0 ? "negative" : "positive"}">${escapeHtml(formatSignedHours(summary.currentWeekBalanceHours))}</span>
+    `;
+  }
+
+  if (timeViewMode === "month") {
+    return `
+      <span>${escapeHtml(formatHours(summary.monthWorkedHours))}</span>
+      <span>${escapeHtml(formatHours(summary.monthTargetHours))}</span>
+      <span class="${summary.monthBalanceHours < 0 ? "negative" : "positive"}">${escapeHtml(formatSignedHours(summary.monthBalanceHours))}</span>
+    `;
+  }
+
+  return `
+    <span>${escapeHtml(summary.todayStatus)}</span>
+    <span>${escapeHtml(formatHours(summary.todayWorkedHours))}</span>
+    <span class="${summary.todayBalanceHours < 0 ? "negative" : "positive"}">${escapeHtml(formatSignedHours(summary.todayBalanceHours))}</span>
+  `;
+}
+
+function renderTimeViewButtons() {
+  for (const button of timeViewButtons) {
+    const isActive = button.dataset.timeView === timeViewMode;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-pressed", String(isActive));
+  }
+}
+
+function renderTimeEditModeButton() {
+  timeEditModeButton.textContent = timeEditModeEnabled ? "Edit mode on" : "Edit mode off";
+  timeEditModeButton.classList.toggle("is-active", timeEditModeEnabled);
+}
+
+function setTimeViewMode(nextMode) {
+  timeViewMode = ["today", "week", "month"].includes(nextMode) ? nextMode : "today";
+  renderTimeViewButtons();
+  renderTimes(latestTimeRows);
+}
+
+function updateMonthExportLinks() {
+  const month = encodeURIComponent(monthPicker.value || new Date().toISOString().slice(0, 7));
+  monthlyCsvLink.href = `/api/export.csv?month=${month}`;
+  monthlyPdfLink.href = `/api/report.pdf?month=${month}`;
 }
 
 function groupRowsByDay(rows) {
@@ -1198,6 +1390,16 @@ function summarizeRowsWorkedHours(rows) {
   }
 
   return roundToTwo(workedMinutes / 60);
+}
+
+function deriveTodayStatus(rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return "No scan";
+  }
+
+  const ordered = [...rows].sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp));
+  const lastRow = ordered[ordered.length - 1];
+  return lastRow.type === "clock_in" ? "Working" : "Out";
 }
 
 function getMonthWeeks(month) {
@@ -1295,6 +1497,17 @@ function matchesTimeFilter(row) {
 
 function normalizeSearch(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function rolePresetHours(role) {
+  const normalized = String(role || "general").trim().toLowerCase();
+  if (normalized === "driver") {
+    return 210;
+  }
+  if (normalized === "admin") {
+    return 176;
+  }
+  return 182;
 }
 
 function nowLocalValue() {

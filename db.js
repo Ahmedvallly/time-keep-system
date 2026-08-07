@@ -80,6 +80,7 @@ async function migrateJsonIntoDatabase() {
         id: "emp-demo-1",
         code: "1001",
         name: "Demo Worker",
+        role: "general",
         monthlyTargetHours: 176,
         notes: "Replace or edit this sample worker."
       }
@@ -151,6 +152,7 @@ async function replaceEmployees(employees) {
       id: String(employee.id),
       code: String(employee.code),
       name: String(employee.name),
+      role: String(employee.role || "general"),
       monthlyTargetHours: Number(employee.monthlyTargetHours),
       notes: String(employee.notes || ""),
       faceDescriptor: normalizeFaceDescriptor(employee.faceDescriptor),
@@ -246,6 +248,7 @@ function toEmployee(document) {
     id: document.id,
     code: document.code,
     name: document.name,
+    role: document.role || "general",
     monthlyTargetHours: Number(document.monthlyTargetHours),
     notes: document.notes || "",
     faceDescriptor: normalizeFaceDescriptor(document.faceDescriptor),

@@ -15,7 +15,12 @@ const LIVE_SUMMARY_FILE = path.join(DATA_DIR, "attendance-live-summary.csv");
 const EVENT_TYPES = ["clock_in", "break_out", "break_in", "clock_out"];
 const LEAVE_TYPES = ["annual", "sick", "unpaid"];
 const ANNUAL_LEAVE_DAYS = 18;
-const MOBILE_APP_VERSION = process.env.MOBILE_APP_VERSION || "2026.08.07.12";
+const EMPLOYEE_ROLES = {
+  general: { label: "General", monthlyTargetHours: 182 },
+  driver: { label: "Driver", monthlyTargetHours: 210 },
+  admin: { label: "Admin", monthlyTargetHours: 176 }
+};
+const MOBILE_APP_VERSION = process.env.MOBILE_APP_VERSION || "2026.08.07.13";
 let readyPromise;
 
 ensureDataFiles();
@@ -75,11 +80,15 @@ async function requestListener(req, res) {
       return sendJson(res, 201, employee);
     }
 
+    if (req.method === "POST" && url.pathname === "/api/employees/restore") {
+      const body = await readJsonBody(req);
+      const employee = await restoreDeletedWorker(body);
+      return sendJson(res, 201, employee);
+    }
+
     if (req.method === "DELETE" && url.pathname.startsWith("/api/employees/")) {
-      await deleteEmployee(url.pathname.split("/").pop());
-      res.writeHead(204);
-      res.end();
-      return;
+      const deleted = await deleteEmployee(url.pathname.split("/").pop());
+      return sendJson(res, 200, deleted);
     }
 
     if (req.method === "POST" && url.pathname === "/api/scans") {
@@ -91,6 +100,12 @@ async function requestListener(req, res) {
     if (req.method === "POST" && url.pathname === "/api/scans/manual") {
       const body = await readJsonBody(req);
       const scan = await createManualScan(body);
+      return sendJson(res, 201, scan);
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/scans/restore") {
+      const body = await readJsonBody(req);
+      const scan = await restoreDeletedScan(body);
       return sendJson(res, 201, scan);
     }
 
@@ -119,10 +134,8 @@ async function requestListener(req, res) {
     }
 
     if (req.method === "DELETE" && url.pathname.startsWith("/api/scans/")) {
-      await deleteScan(url.pathname.split("/").pop());
-      res.writeHead(204);
-      res.end();
-      return;
+      const deleted = await deleteScan(url.pathname.split("/").pop());
+      return sendJson(res, 200, deleted);
     }
 
     if (req.method === "DELETE" && url.pathname.startsWith("/api/leaves/")) {
@@ -349,7 +362,11 @@ function getHolidays() {
 async function upsertEmployee(input) {
   const name = String(input.name || "").trim();
   const code = String(input.code || "").trim();
-  const monthlyTargetHours = Number(input.monthlyTargetHours);
+  const role = normalizeEmployeeRole(input.role);
+  const fallbackTarget = rolePresetHours(role);
+  const monthlyTargetHours = input.monthlyTargetHours === "" || input.monthlyTargetHours == null
+    ? fallbackTarget
+    : Number(input.monthlyTargetHours);
   const notes = String(input.notes || "").trim();
 
   if (!name || !code || Number.isNaN(monthlyTargetHours) || monthlyTargetHours < 0) {
@@ -367,6 +384,7 @@ async function upsertEmployee(input) {
     id: existingEmployee ? existingEmployee.id : `emp-${Date.now()}`,
     code,
     name,
+    role,
     monthlyTargetHours,
     notes,
     faceDescriptor,
@@ -446,6 +464,44 @@ async function createManualScan(input) {
   return scan;
 }
 
+async function restoreDeletedWorker(input) {
+  const employees = getEmployees();
+  const scans = getScans();
+  const leaves = getLeaves();
+  const employee = normalizeRestoredEmployee(input.employee);
+  const workerScans = Array.isArray(input.scans) ? input.scans.map(normalizeRestoredScan) : [];
+  const workerLeaves = Array.isArray(input.leaves) ? input.leaves.map(normalizeRestoredLeave) : [];
+
+  if (employees.some((entry) => entry.code === employee.code)) {
+    throw httpError(400, `Worker ${employee.code} already exists.`);
+  }
+
+  employees.push(employee);
+  scans.push(...workerScans);
+  leaves.push(...workerLeaves);
+  sortScans(scans);
+  await db.replaceEmployees(employees);
+  await db.replaceScans(scans);
+  await db.replaceLeaves(leaves);
+  syncExcelFiles();
+  return employee;
+}
+
+async function restoreDeletedScan(input) {
+  const scan = normalizeRestoredScan(input.scan);
+  const scans = getScans();
+
+  if (scans.some((entry) => entry.id === scan.id)) {
+    throw httpError(400, `Scan ${scan.id} already exists.`);
+  }
+
+  scans.push(scan);
+  sortScans(scans);
+  await db.replaceScans(scans);
+  syncExcelFiles();
+  return scan;
+}
+
 async function deleteEmployee(employeeCode) {
   const code = decodeURIComponent(String(employeeCode || "")).trim();
   const employees = getEmployees();
@@ -454,6 +510,8 @@ async function deleteEmployee(employeeCode) {
     throw httpError(404, "Worker not found.");
   }
 
+  const workerScans = getScans().filter((scan) => scan.employeeCode === code);
+  const workerLeaves = getLeaves().filter((leave) => leave.employeeCode === code);
   const nextEmployees = employees.filter((entry) => entry.code !== code);
   const nextScans = getScans().filter((scan) => scan.employeeCode !== code);
   const nextLeaves = getLeaves().filter((leave) => leave.employeeCode !== code);
@@ -462,6 +520,11 @@ async function deleteEmployee(employeeCode) {
   await db.replaceScans(nextScans);
   await db.replaceLeaves(nextLeaves);
   syncExcelFiles();
+  return {
+    employee,
+    scans: workerScans,
+    leaves: workerLeaves
+  };
 }
 
 async function createLeave(input) {
@@ -567,6 +630,7 @@ async function updateScan(scanId, input) {
 
 async function deleteScan(scanId) {
   const scans = getScans();
+  const deleted = scans.find((scan) => scan.id === scanId);
   const nextScans = scans.filter((scan) => scan.id !== scanId);
   if (nextScans.length === scans.length) {
     throw httpError(404, "Scan not found.");
@@ -574,6 +638,68 @@ async function deleteScan(scanId) {
 
   await db.replaceScans(nextScans);
   syncExcelFiles();
+  return { scan: deleted };
+}
+
+function normalizeEmployeeRole(value) {
+  const role = String(value || "general").trim().toLowerCase();
+  if (!EMPLOYEE_ROLES[role]) {
+    throw httpError(400, `Employee role must be one of: ${Object.keys(EMPLOYEE_ROLES).join(", ")}.`);
+  }
+  return role;
+}
+
+function rolePresetHours(role) {
+  return Number(EMPLOYEE_ROLES[role]?.monthlyTargetHours || EMPLOYEE_ROLES.general.monthlyTargetHours);
+}
+
+function normalizeRestoredEmployee(employee) {
+  if (!employee || typeof employee !== "object") {
+    throw httpError(400, "Employee payload is required for restore.");
+  }
+
+  return {
+    id: String(employee.id),
+    code: String(employee.code),
+    name: String(employee.name),
+    role: normalizeEmployeeRole(employee.role),
+    monthlyTargetHours: Number(employee.monthlyTargetHours),
+    notes: String(employee.notes || ""),
+    faceDescriptor: normalizeFaceDescriptor(employee.faceDescriptor),
+    faceUpdatedAt: String(employee.faceUpdatedAt || "")
+  };
+}
+
+function normalizeRestoredScan(scan) {
+  if (!scan || typeof scan !== "object") {
+    throw httpError(400, "Scan payload is required for restore.");
+  }
+
+  return {
+    id: String(scan.id),
+    employeeCode: String(scan.employeeCode),
+    employeeName: String(scan.employeeName),
+    timestamp: String(scan.timestamp),
+    type: normalizeEventType(scan.type)
+  };
+}
+
+function normalizeRestoredLeave(leave) {
+  if (!leave || typeof leave !== "object") {
+    throw httpError(400, "Leave payload is required for restore.");
+  }
+
+  return {
+    id: String(leave.id),
+    employeeCode: String(leave.employeeCode),
+    employeeName: String(leave.employeeName),
+    startDate: String(leave.startDate),
+    endDate: String(leave.endDate),
+    leaveType: normalizeLeaveType(leave.leaveType),
+    days: Number(leave.days),
+    reason: String(leave.reason || ""),
+    createdAt: String(leave.createdAt || new Date().toISOString())
+  };
 }
 
 async function deleteLeave(leaveId) {

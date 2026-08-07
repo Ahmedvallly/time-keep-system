@@ -387,7 +387,9 @@ tbody tr:last-child td {
 }
 
 .mobile-topbar {
-  position: static;
+  position: sticky;
+  top: 0;
+  z-index: 20;
   margin-bottom: 12px;
   padding: 10px 10px 12px;
   border: 1px solid rgba(216, 204, 183, 0.9);
@@ -797,6 +799,18 @@ tbody tr:last-child td {
 .mobile-inline-actions {
   display: flex;
   align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mobile-times-toolbar {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.mobile-times-mode-nav {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .mobile-time-group {

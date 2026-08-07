@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Time Keep Admin</title>
-    <link rel="stylesheet" href="/styles.css?v=2026.08.07.12">
+    <link rel="stylesheet" href="/styles.css?v=2026.08.07.13">
   </head>
   <body class="mobile-body">
     <main class="mobile-layout">
@@ -72,11 +72,17 @@
               <form id="mobileWorkerForm" class="stack-form">
                 <input name="name" id="mobileWorkerName" placeholder="Worker name" required>
                 <input name="code" id="mobileWorkerCode" placeholder="Employee code" required>
-                <input name="monthlyTargetHours" id="mobileWorkerTargetHours" type="number" min="0" step="0.25" value="176" required>
+                <select name="role" id="mobileWorkerRole" required>
+                  <option value="general">General</option>
+                  <option value="driver">Driver</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <input name="monthlyTargetHours" id="mobileWorkerTargetHours" type="number" min="0" step="0.25" value="182" required>
                 <textarea name="notes" id="mobileWorkerNotes" rows="3" placeholder="Notes"></textarea>
                 <div id="mobileFacePreview" class="mobile-face-preview mobile-empty">No face captured yet.</div>
                 <button class="button" type="submit">Save worker</button>
                 <p id="mobileWorkerMessage" class="message"></p>
+                <button class="button secondary small-button" id="mobileUndoWorkerDeleteButton" type="button" hidden>Undo deleted worker</button>
               </form>
             </section>
 
@@ -114,8 +120,22 @@
                 <h2>Edit time rows</h2>
                 <p>Filter by worker, then open only the day you want to fix.</p>
               </div>
+              <div class="mobile-times-toolbar">
+                <div class="mobile-quicknav mobile-times-mode-nav" aria-label="Time summary modes">
+                  <button type="button" class="mobile-tab is-active" data-time-view="today">Today</button>
+                  <button type="button" class="mobile-tab" data-time-view="week">Week</button>
+                  <button type="button" class="mobile-tab" data-time-view="month">Month</button>
+                </div>
+                <div class="mobile-inline-actions">
+                  <button class="button secondary small-button" id="mobileTimeEditModeButton" type="button">Edit mode off</button>
+                  <a class="button secondary small-button" id="mobileMonthlyCsvLink" href="/api/export.csv" target="_blank" rel="noopener">Monthly CSV</a>
+                  <a class="button secondary small-button" id="mobileMonthlyPdfLink" href="/api/report.pdf" target="_blank" rel="noopener">Print month PDF</a>
+                </div>
+              </div>
               <input id="mobileTimesFilter" type="search" placeholder="Search worker name or code">
               <div id="mobileTimes" class="mobile-list"></div>
+              <p id="mobileTimeDeleteMessage" class="message"></p>
+              <button class="button secondary small-button" id="mobileUndoTimeDeleteButton" type="button" hidden>Undo deleted time row</button>
             </section>
           </section>
 
@@ -173,6 +193,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <script src="/mobile-admin.js?v=2026.08.07.12"></script>
+    <script src="/mobile-admin.js?v=2026.08.07.13"></script>
   </body>
 </html>

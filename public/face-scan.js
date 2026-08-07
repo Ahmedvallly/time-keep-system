@@ -206,6 +206,11 @@ function greetingForEvent(type, employeeName) {
 }
 
 function speakMessage(message) {
+  if (window.nativeTts && typeof window.nativeTts.postMessage === "function") {
+    window.nativeTts.postMessage(message);
+    return;
+  }
+
   if (!("speechSynthesis" in window)) {
     return;
   }
@@ -231,7 +236,7 @@ function speakMessage(message) {
 }
 
 function primeSpeechSynthesis() {
-  if (!("speechSynthesis" in window) || speechPrimed) {
+  if ((window.nativeTts && typeof window.nativeTts.postMessage === "function") || !("speechSynthesis" in window) || speechPrimed) {
     return;
   }
 
