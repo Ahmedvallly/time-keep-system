@@ -403,6 +403,18 @@ tbody tr:last-child td {
   justify-content: flex-start;
 }
 
+.mobile-topbar.is-collapsed {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  margin-bottom: 8px;
+}
+
+.mobile-topbar.is-collapsed .mobile-topbar-collapsed {
+  padding: 0;
+}
+
 .mobile-topbar-main {
   display: flex;
   align-items: start;

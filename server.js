@@ -15,7 +15,7 @@ const LIVE_SUMMARY_FILE = path.join(DATA_DIR, "attendance-live-summary.csv");
 const EVENT_TYPES = ["clock_in", "break_out", "break_in", "clock_out"];
 const LEAVE_TYPES = ["annual", "sick", "unpaid"];
 const ANNUAL_LEAVE_DAYS = 18;
-const MOBILE_APP_VERSION = process.env.MOBILE_APP_VERSION || "2026.08.07.6";
+const MOBILE_APP_VERSION = process.env.MOBILE_APP_VERSION || "2026.08.07.7";
 let readyPromise;
 
 ensureDataFiles();
@@ -73,6 +73,13 @@ async function requestListener(req, res) {
       const body = await readJsonBody(req);
       const employee = await upsertEmployee(body);
       return sendJson(res, 201, employee);
+    }
+
+    if (req.method === "DELETE" && url.pathname.startsWith("/api/employees/")) {
+      await deleteEmployee(url.pathname.split("/").pop());
+      res.writeHead(204);
+      res.end();
+      return;
     }
 
     if (req.method === "POST" && url.pathname === "/api/scans") {
@@ -437,6 +444,24 @@ async function createManualScan(input) {
   await db.replaceScans(scans);
   syncExcelFiles();
   return scan;
+}
+
+async function deleteEmployee(employeeCode) {
+  const code = decodeURIComponent(String(employeeCode || "")).trim();
+  const employees = getEmployees();
+  const employee = employees.find((entry) => entry.code === code);
+  if (!employee) {
+    throw httpError(404, "Worker not found.");
+  }
+
+  const nextEmployees = employees.filter((entry) => entry.code !== code);
+  const nextScans = getScans().filter((scan) => scan.employeeCode !== code);
+  const nextLeaves = getLeaves().filter((leave) => leave.employeeCode !== code);
+
+  await db.replaceEmployees(nextEmployees);
+  await db.replaceScans(nextScans);
+  await db.replaceLeaves(nextLeaves);
+  syncExcelFiles();
 }
 
 async function createLeave(input) {

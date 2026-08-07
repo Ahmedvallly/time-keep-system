@@ -17,6 +17,7 @@ let lastMatchedEmployeeCode = "";
 let lastMatchedAt = 0;
 let refreshTimer = null;
 let scannerStarted = false;
+let speechPrimed = false;
 
 async function refreshAll() {
   await Promise.all([loadEmployees(), loadDashboard()]);
@@ -43,6 +44,7 @@ async function startScanner() {
   startButton.disabled = true;
   faceHint.textContent = "Starting camera...";
   await startVideoStream(faceScanVideo);
+  primeSpeechSynthesis();
   await ensureFaceModels();
   startFaceScanLoop();
 }
@@ -208,11 +210,38 @@ function speakMessage(message) {
     return;
   }
 
-  window.speechSynthesis.cancel();
+  const synth = window.speechSynthesis;
+  synth.cancel();
+  synth.resume();
   const utterance = new SpeechSynthesisUtterance(message);
+  utterance.lang = navigator.language || "en-ZA";
   utterance.rate = 0.95;
   utterance.pitch = 1;
-  window.speechSynthesis.speak(utterance);
+  utterance.volume = 1;
+
+  const voices = synth.getVoices();
+  if (voices.length > 0) {
+    const preferredVoice = voices.find((voice) => voice.lang === utterance.lang)
+      || voices.find((voice) => String(voice.lang || "").startsWith("en"))
+      || voices[0];
+    utterance.voice = preferredVoice;
+  }
+
+  synth.speak(utterance);
+}
+
+function primeSpeechSynthesis() {
+  if (!("speechSynthesis" in window) || speechPrimed) {
+    return;
+  }
+
+  speechPrimed = true;
+  const synth = window.speechSynthesis;
+  synth.getVoices();
+  const warmup = new SpeechSynthesisUtterance("");
+  warmup.volume = 0;
+  synth.speak(warmup);
+  synth.cancel();
 }
 
 function hasRegisteredFace(employee) {

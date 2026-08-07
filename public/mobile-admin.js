@@ -6,6 +6,7 @@ const ADMIN_SESSION_KEY = "time-keep-mobile-admin-auth";
 
 const authShell = document.getElementById("mobileAdminAuthShell");
 const adminApp = document.getElementById("mobileAdminApp");
+const topbarNode = document.querySelector(".mobile-topbar");
 const loginForm = document.getElementById("mobileAdminLoginForm");
 const loginMessage = document.getElementById("mobileAdminLoginMessage");
 const logoutButton = document.getElementById("mobileAdminLogoutButton");
@@ -363,24 +364,43 @@ function renderWorkers() {
     return;
   }
 
-  workersNode.innerHTML = employees
-    .map((employee) => {
-      const hasFace = Array.isArray(employee.faceDescriptor) && employee.faceDescriptor.length === 128;
-      return `
-        <article class="mobile-data-card">
-          <div class="mobile-card-topline">
-            <strong>${escapeHtml(employee.name)}</strong>
-            <span class="mobile-badge">${hasFace ? "Face ready" : "No face"}</span>
-          </div>
-          <div class="mobile-detail-list">
-            <p><span>Code</span>${escapeHtml(employee.code)}</p>
-            <p><span>Target hours</span>${Number(employee.monthlyTargetHours || 0).toFixed(2)}</p>
-            <p><span>Notes</span>${escapeHtml(employee.notes || "No notes")}</p>
-          </div>
-        </article>
-      `;
-    })
-    .join("");
+  workersNode.innerHTML = "";
+
+  for (const employee of employees) {
+    const hasFace = Array.isArray(employee.faceDescriptor) && employee.faceDescriptor.length === 128;
+    const article = document.createElement("article");
+    article.className = "mobile-data-card";
+    article.innerHTML = `
+      <div class="mobile-card-topline">
+        <strong>${escapeHtml(employee.name)}</strong>
+        <span class="mobile-badge">${hasFace ? "Face ready" : "No face"}</span>
+      </div>
+      <div class="mobile-detail-list">
+        <p><span>Code</span>${escapeHtml(employee.code)}</p>
+        <p><span>Target hours</span>${Number(employee.monthlyTargetHours || 0).toFixed(2)}</p>
+        <p><span>Notes</span>${escapeHtml(employee.notes || "No notes")}</p>
+      </div>
+      <div class="mobile-edit-actions">
+        <button class="button secondary small-button" type="button" data-action="delete">Delete worker</button>
+      </div>
+    `;
+
+    article.querySelector('[data-action="delete"]').addEventListener("click", async () => {
+      try {
+        const response = await fetch(`/api/employees/${encodeURIComponent(employee.code)}`, { method: "DELETE" });
+        if (!response.ok) {
+          const data = await response.json();
+          throw new Error(data.error || "Delete failed.");
+        }
+        setMessage(workerMessage, `Deleted ${employee.name}.`);
+        await refreshAll();
+      } catch (error) {
+        setMessage(workerMessage, error.message, true);
+      }
+    });
+
+    workersNode.appendChild(article);
+  }
 }
 
 function renderTimes(rows) {
@@ -850,6 +870,7 @@ function applyTopbarState() {
   topbarCollapsedBar.hidden = !topbarCollapsed;
   topbarMain.hidden = topbarCollapsed;
   topbarBody.hidden = topbarCollapsed;
+  topbarNode.classList.toggle("is-collapsed", topbarCollapsed);
 }
 
 function setTopbarCollapsed(nextValue) {
