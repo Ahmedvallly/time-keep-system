@@ -303,6 +303,10 @@ tbody tr:last-child td {
   padding: 8px 0 24px;
 }
 
+.mobile-scanner-layout {
+  width: min(100% - 12px, 760px);
+}
+
 .mobile-shell {
   backdrop-filter: blur(10px);
 }
@@ -343,6 +347,11 @@ tbody tr:last-child td {
   background: rgba(47, 93, 80, 0.08);
   border: 1px solid rgba(47, 93, 80, 0.12);
   font-size: 0.9rem;
+}
+
+.mobile-link-button {
+  border: 0;
+  cursor: pointer;
 }
 
 .mobile-toolbar {
@@ -473,6 +482,10 @@ tbody tr:last-child td {
   background: linear-gradient(180deg, rgba(47, 93, 80, 0.12), rgba(255, 250, 241, 0.98));
 }
 
+.mobile-scanner-card {
+  padding-bottom: 18px;
+}
+
 .mobile-card .stack-form {
   gap: 10px;
 }
@@ -489,6 +502,10 @@ tbody tr:last-child td {
 
 .mobile-camera-shell-compact {
   min-height: 260px;
+}
+
+.mobile-camera-shell-tall {
+  min-height: 58vh;
 }
 
 .mobile-camera-video {
@@ -520,6 +537,22 @@ tbody tr:last-child td {
 .mobile-scan-status {
   display: grid;
   gap: 4px;
+}
+
+.mobile-scanner-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.mobile-auth-shell {
+  min-height: calc(100vh - 16px);
+  display: grid;
+  place-items: center;
+}
+
+.mobile-auth-card {
+  width: min(100%, 480px);
 }
 
 .mobile-face-preview {

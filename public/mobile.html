@@ -3,178 +3,50 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>Time Keep Mobile</title>
+    <title>Time Keep Face Scan</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body class="mobile-body">
-    <main class="mobile-layout">
+    <main class="mobile-layout mobile-scanner-layout">
       <header class="mobile-topbar mobile-shell">
         <div class="mobile-topbar-main">
           <div>
-            <p class="eyebrow">Time Keep Mobile</p>
-            <h1>Face register and face scan</h1>
+            <p class="eyebrow">Time Keep Scanner</p>
+            <h1>Face scan only</h1>
           </div>
-          <a class="mobile-link" href="/">Desktop view</a>
         </div>
-        <div class="mobile-toolbar">
-          <label class="month-label" for="mobileMonthPicker">Month</label>
-          <input id="mobileMonthPicker" type="month">
-        </div>
-        <nav class="mobile-quicknav" aria-label="App sections">
-          <button type="button" class="mobile-tab is-active" data-tab="face-scan">Face scan</button>
-          <button type="button" class="mobile-tab" data-tab="workers">Workers</button>
-          <button type="button" class="mobile-tab" data-tab="times">Times</button>
-          <button type="button" class="mobile-tab" data-tab="leave">Leave</button>
-          <button type="button" class="mobile-tab" data-tab="holidays">Holidays</button>
-        </nav>
+        <p class="mobile-scanner-note">This page is for workers only. It stays on the front camera and alternates clock in and clock out.</p>
       </header>
 
       <section class="mobile-summary" id="mobileSummary"></section>
 
-      <section class="mobile-panel-stack">
-        <section class="mobile-panel is-active" data-tab-panel="face-scan">
-          <section class="card mobile-card mobile-shell mobile-feature-card">
-            <div class="card-head mobile-card-head">
-              <h2>Face scanner</h2>
-              <p>Keep the phone here. Each worker scan alternates between clock in and clock out all day.</p>
-            </div>
-            <div class="mobile-camera-shell">
-              <video id="mobileFaceScanVideo" class="mobile-camera-video" autoplay muted playsinline></video>
-              <div class="mobile-camera-overlay">
-                <div class="mobile-camera-target"></div>
-              </div>
-            </div>
-            <div class="mobile-scan-status">
-              <p id="mobileFaceStatus" class="message">Loading face scanner...</p>
-              <p id="mobileFaceHint" class="mobile-empty">Allow camera access, then center one face inside the frame.</p>
-            </div>
-          </section>
+      <section class="card mobile-card mobile-shell mobile-feature-card mobile-scanner-card">
+        <div class="card-head mobile-card-head">
+          <h2>Live face scanner</h2>
+          <p>One worker at a time. Look into the camera until the name is spoken.</p>
+        </div>
+        <div class="mobile-camera-shell mobile-camera-shell-tall">
+          <video id="mobileFaceScanVideo" class="mobile-camera-video" autoplay muted playsinline></video>
+          <div class="mobile-camera-overlay">
+            <div class="mobile-camera-target"></div>
+          </div>
+        </div>
+        <div class="mobile-scan-status">
+          <p id="mobileFaceStatus" class="message">Loading face scanner...</p>
+          <p id="mobileFaceHint" class="mobile-empty">Allow camera access, then center one face inside the frame.</p>
+        </div>
+      </section>
 
-          <section class="card mobile-card mobile-shell">
-            <div class="card-head mobile-card-head">
-              <h2>Today's activity</h2>
-              <p>Latest scans, newest first.</p>
-            </div>
-            <div id="mobileActivity" class="mobile-list"></div>
-          </section>
-        </section>
-
-        <section class="mobile-panel" data-tab-panel="workers">
-          <section class="card mobile-card mobile-shell">
-            <div class="card-head mobile-card-head">
-              <h2>Add worker with face</h2>
-              <p>Capture one front selfie before saving the worker.</p>
-            </div>
-            <div class="mobile-camera-shell mobile-camera-shell-compact">
-              <video id="mobileWorkerVideo" class="mobile-camera-video" autoplay muted playsinline></video>
-              <div class="mobile-camera-overlay">
-                <div class="mobile-camera-target"></div>
-              </div>
-            </div>
-            <canvas id="mobileWorkerCanvas" hidden></canvas>
-            <form id="mobileWorkerForm" class="stack-form">
-              <input name="name" id="mobileWorkerName" placeholder="Worker name" required>
-              <input name="code" id="mobileWorkerCode" placeholder="Employee code" required>
-              <input name="monthlyTargetHours" id="mobileWorkerTargetHours" type="number" min="0" step="0.25" value="176" required>
-              <textarea name="notes" id="mobileWorkerNotes" rows="3" placeholder="Notes"></textarea>
-              <button class="button secondary" id="mobileCaptureFaceButton" type="button">Capture face</button>
-              <div id="mobileFacePreview" class="mobile-face-preview mobile-empty">No face captured yet.</div>
-              <button class="button" type="submit">Save worker</button>
-              <p id="mobileWorkerMessage" class="message"></p>
-            </form>
-          </section>
-
-          <section class="card mobile-card mobile-shell">
-            <div class="card-head mobile-card-head">
-              <h2>Saved workers</h2>
-              <p>Face status shows who is ready for camera scanning.</p>
-            </div>
-            <div id="mobileWorkers" class="mobile-list"></div>
-          </section>
-        </section>
-
-        <section class="mobile-panel" data-tab-panel="times">
-          <section class="card mobile-card mobile-shell" id="mobileManualSection">
-            <div class="card-head mobile-card-head">
-              <h2>Add or fix time</h2>
-              <p>Create one manual row without leaving the phone.</p>
-            </div>
-            <form id="mobileManualForm" class="stack-form">
-              <select name="employeeCode" id="mobileEmployeeCode" required>
-                <option value="">Select worker</option>
-              </select>
-              <input name="timestamp" id="mobileTimestamp" type="datetime-local" required>
-              <select name="type" id="mobileType" required>
-                <option value="clock_in">Clock in</option>
-                <option value="clock_out">Clock out</option>
-              </select>
-              <button class="button" type="submit">Save row</button>
-              <p id="mobileManualMessage" class="message"></p>
-            </form>
-          </section>
-
-          <section class="card mobile-card mobile-shell">
-            <div class="card-head mobile-card-head">
-              <h2>Edit time rows</h2>
-              <p>Update or delete saved time rows.</p>
-            </div>
-            <div id="mobileTimes" class="mobile-list"></div>
-          </section>
-        </section>
-
-        <section class="mobile-panel" data-tab-panel="leave">
-          <section class="card mobile-card mobile-shell">
-            <div class="card-head mobile-card-head">
-              <h2>Leave balances</h2>
-              <p>Annual leave remaining for each worker.</p>
-            </div>
-            <div id="mobileLeaveBalances" class="mobile-list mobile-balance-grid"></div>
-          </section>
-
-          <section class="card mobile-card mobile-shell" id="mobileLeaveSection">
-            <div class="card-head mobile-card-head">
-              <h2>Manage leave</h2>
-              <p>Add, edit, or delete leave records.</p>
-            </div>
-            <form id="mobileLeaveForm" class="stack-form">
-              <select name="employeeCode" id="mobileLeaveEmployeeCode" required>
-                <option value="">Select worker</option>
-              </select>
-              <select name="leaveType" id="mobileLeaveType" required>
-                <option value="annual">Annual leave</option>
-                <option value="sick">Sick leave</option>
-                <option value="unpaid">Unpaid leave</option>
-              </select>
-              <input name="startDate" id="mobileLeaveStartDate" type="date" required>
-              <input name="endDate" id="mobileLeaveEndDate" type="date" required>
-              <textarea name="reason" id="mobileLeaveReason" rows="3" placeholder="Reason for leave"></textarea>
-              <button class="button" id="mobileLeaveSubmitButton" type="submit">Save leave</button>
-              <button class="button secondary" id="mobileLeaveCancelButton" type="button" hidden>Cancel edit</button>
-              <p id="mobileLeaveMessage" class="message"></p>
-            </form>
-            <div id="mobileLeaves" class="mobile-list"></div>
-          </section>
-        </section>
-
-        <section class="mobile-panel" data-tab-panel="holidays">
-          <section class="card mobile-card mobile-shell" id="mobileHolidaySection">
-            <div class="card-head mobile-card-head">
-              <h2>Public holidays</h2>
-              <p>Keep the holiday list up to date.</p>
-            </div>
-            <form id="mobileHolidayForm" class="stack-form">
-              <input name="date" id="mobileHolidayDate" type="date" required>
-              <input name="name" id="mobileHolidayName" placeholder="Holiday name" required>
-              <button class="button" type="submit">Save holiday</button>
-              <p id="mobileHolidayMessage" class="message"></p>
-            </form>
-            <div id="mobileHolidays" class="mobile-list"></div>
-          </section>
-        </section>
+      <section class="card mobile-card mobile-shell">
+        <div class="card-head mobile-card-head">
+          <h2>Today's activity</h2>
+          <p>Latest scans, newest first.</p>
+        </div>
+        <div id="mobileActivity" class="mobile-list"></div>
       </section>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <script src="/mobile.js"></script>
+    <script src="/face-scan.js"></script>
   </body>
 </html>

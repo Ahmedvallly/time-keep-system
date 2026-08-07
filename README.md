@@ -150,7 +150,8 @@ This repo now includes a Flutter shell source app in [`flutter_app`](./flutter_a
 If you change:
 
 - `public/mobile.html`
-- `public/mobile.js`
+- `public/face-scan.js`
+- `public/mobile-admin.js`
 - `public/styles.css`
 
 and then redeploy the server, installed phones can pick up the update automatically because the Flutter shell is only displaying the hosted page.

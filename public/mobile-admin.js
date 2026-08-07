@@ -1,16 +1,18 @@
 const EVENT_TYPES = ["clock_in", "clock_out"];
 const FACE_MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights";
-const FACE_MATCH_THRESHOLD = 0.5;
-const FACE_SCAN_INTERVAL_MS = 1400;
-const FACE_SCAN_COOLDOWN_MS = 12000;
+const ADMIN_USERNAME = "a";
+const ADMIN_PASSWORD = "a";
+const ADMIN_SESSION_KEY = "time-keep-mobile-admin-auth";
 
+const authShell = document.getElementById("mobileAdminAuthShell");
+const adminApp = document.getElementById("mobileAdminApp");
+const loginForm = document.getElementById("mobileAdminLoginForm");
+const loginMessage = document.getElementById("mobileAdminLoginMessage");
+const logoutButton = document.getElementById("mobileAdminLogoutButton");
 const monthPicker = document.getElementById("mobileMonthPicker");
 const summaryNode = document.getElementById("mobileSummary");
-const faceScanVideo = document.getElementById("mobileFaceScanVideo");
 const workerVideo = document.getElementById("mobileWorkerVideo");
 const workerCanvas = document.getElementById("mobileWorkerCanvas");
-const faceStatus = document.getElementById("mobileFaceStatus");
-const faceHint = document.getElementById("mobileFaceHint");
 const workerForm = document.getElementById("mobileWorkerForm");
 const workerMessage = document.getElementById("mobileWorkerMessage");
 const captureFaceButton = document.getElementById("mobileCaptureFaceButton");
@@ -32,7 +34,6 @@ const leaveMessage = document.getElementById("mobileLeaveMessage");
 const holidayForm = document.getElementById("mobileHolidayForm");
 const holidayDate = document.getElementById("mobileHolidayDate");
 const holidayMessage = document.getElementById("mobileHolidayMessage");
-const activityNode = document.getElementById("mobileActivity");
 const timesNode = document.getElementById("mobileTimes");
 const leaveBalancesNode = document.getElementById("mobileLeaveBalances");
 const leavesNode = document.getElementById("mobileLeaves");
@@ -43,13 +44,9 @@ const tabPanels = Array.from(document.querySelectorAll("[data-tab-panel]"));
 let employees = [];
 let refreshTimer = null;
 let editingLeaveId = null;
-let activeTab = "face-scan";
+let activeTab = "workers";
 let faceModelsReady = false;
 let faceModelsLoading = null;
-let faceScanTimer = null;
-let faceScanBusy = false;
-let lastMatchedEmployeeCode = "";
-let lastMatchedAt = 0;
 let capturedFaceDescriptor = [];
 let capturedFacePreviewUrl = "";
 
@@ -59,9 +56,37 @@ leaveStartDate.value = todayDateValue();
 leaveEndDate.value = todayDateValue();
 holidayDate.value = todayDateValue();
 
+loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(loginForm);
+  const username = String(formData.get("username") || "").trim();
+  const password = String(formData.get("password") || "");
+
+  if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+    setMessage(loginMessage, "Incorrect username or password.", true);
+    return;
+  }
+
+  sessionStorage.setItem(ADMIN_SESSION_KEY, "ok");
+  setMessage(loginMessage, "");
+  loginForm.reset();
+  await unlockAdmin();
+});
+
+logoutButton.addEventListener("click", () => {
+  sessionStorage.removeItem(ADMIN_SESSION_KEY);
+  stopVideoStream(workerVideo);
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+  authShell.hidden = false;
+  adminApp.hidden = true;
+});
+
 for (const button of tabButtons) {
   button.addEventListener("click", () => {
-    setActiveTab(button.dataset.tab || "face-scan");
+    setActiveTab(button.dataset.tab || "workers");
   });
 }
 
@@ -70,10 +95,12 @@ captureFaceButton.addEventListener("click", async () => {
   setMessage(workerMessage, "Capturing face...");
 
   try {
+    await ensureWorkerCamera();
     await ensureFaceModels();
-    const descriptor = await detectFaceDescriptor(workerVideo);
-    capturedFaceDescriptor = descriptor;
-    capturedFacePreviewUrl = captureVideoFrame(workerVideo, workerCanvas);
+    captureVideoFrame(workerVideo, workerCanvas);
+    const descriptor = await detectFaceDescriptor(workerCanvas);
+    capturedFaceDescriptor = Array.from(descriptor.descriptor);
+    capturedFacePreviewUrl = workerCanvas.toDataURL("image/jpeg", 0.9);
     renderFacePreview();
     setMessage(workerMessage, "Face captured. Save the worker now.");
   } catch (error) {
@@ -197,23 +224,38 @@ holidayForm.addEventListener("submit", async (event) => {
 
 monthPicker.addEventListener("change", refreshAll);
 
+async function unlockAdmin() {
+  authShell.hidden = true;
+  adminApp.hidden = false;
+  await refreshAll();
+  setActiveTab(activeTab);
+  renderFacePreview();
+  refreshTimer = setInterval(() => {
+    refreshAll().catch(() => {});
+  }, 10000);
+}
+
 async function refreshAll() {
   await loadEmployees();
   await Promise.all([loadDashboard(), loadTimes(), loadLeaves(), loadHolidays()]);
 }
 
+async function loadEmployees() {
+  const response = await fetch("/api/employees");
+  employees = await response.json();
+  renderEmployeeOptions(employees);
+  renderWorkers();
+}
+
 async function loadDashboard() {
   const response = await fetch(`/api/dashboard?month=${monthPicker.value}`);
   const data = await response.json();
-  window.__latestTodayScans = data.todayScans;
-  renderSummary(data.workers, data.todayScans);
-  renderActivity(data.todayScans);
+  renderSummary(data.workers);
 }
 
 async function loadTimes() {
   const response = await fetch(`/api/times?month=${monthPicker.value}`);
   const data = await response.json();
-  renderEmployeeOptions(data.employees);
   renderTimes(data.rows);
 }
 
@@ -230,16 +272,8 @@ async function loadHolidays() {
   renderHolidays(data.rows);
 }
 
-async function loadEmployees() {
-  const response = await fetch("/api/employees");
-  employees = await response.json();
-  renderEmployeeOptions(employees);
-  renderWorkers();
-}
-
-function renderSummary(workers, todayScans) {
+function renderSummary(workers) {
   const workingCount = workers.filter((worker) => worker.status === "Working").length;
-  const breakCount = workers.filter((worker) => worker.status === "On break").length;
   const finishedCount = workers.filter((worker) => worker.status === "Finished").length;
   const absentCount = workers.filter((worker) => Number(worker.absentDays || 0) > 0).length;
   const readyFaces = workers.filter((worker) => {
@@ -248,12 +282,12 @@ function renderSummary(workers, todayScans) {
   }).length;
 
   summaryNode.innerHTML = [
-    summaryCard("Today scans", String(todayScans.length), "Live today"),
     summaryCard("Working", String(workingCount), "Currently in"),
-    summaryCard("On break", String(breakCount), "Break status"),
-    summaryCard("Finished", String(finishedCount), "Done today"),
+    summaryCard("Finished", String(finishedCount), "Clocked out"),
     summaryCard("Workers", String(workers.length), "Total staff"),
-    summaryCard("Faces ready", String(readyFaces), "Can scan")
+    summaryCard("Faces ready", String(readyFaces), "Can scan"),
+    summaryCard("Absences", String(absentCount), "This month"),
+    summaryCard("Admin", "Unlocked", "Protected page")
   ].join("");
 }
 
@@ -312,27 +346,6 @@ function renderWorkers() {
         </article>
       `;
     })
-    .join("");
-}
-
-function renderActivity(scans) {
-  if (scans.length === 0) {
-    activityNode.innerHTML = `<p class="mobile-empty">No scans yet today.</p>`;
-    return;
-  }
-
-  activityNode.innerHTML = scans
-    .map(
-      (scan) => `
-        <article class="mobile-row">
-          <div>
-            <strong>${escapeHtml(scan.employeeName)}</strong>
-            <p>${escapeHtml(formatEvent(scan.type))}</p>
-          </div>
-          <time>${escapeHtml(formatDateTime(scan.timestamp))}</time>
-        </article>
-      `
-    )
     .join("");
 }
 
@@ -555,41 +568,23 @@ function setActiveTab(tabName) {
     panel.hidden = !isActive;
   }
 
-  syncCameraState().catch((error) => {
-    setMessage(faceStatus, error.message, true);
-  });
+  if (tabName === "workers") {
+    ensureWorkerCamera().catch((error) => {
+      setMessage(workerMessage, error.message, true);
+    });
+  } else {
+    stopVideoStream(workerVideo);
+  }
 }
 
-async function syncCameraState() {
-  const wantsFaceScan = activeTab === "face-scan";
-  const wantsWorkerCamera = activeTab === "workers";
-
-  if (wantsFaceScan || wantsWorkerCamera) {
-    await startVideoStream(wantsFaceScan ? faceScanVideo : workerVideo);
-    if (wantsFaceScan) {
-      stopVideoStream(workerVideo);
-      await ensureFaceModels();
-      startFaceScanLoop();
-    } else {
-      stopFaceScanLoop();
-      stopVideoStream(faceScanVideo);
-      await ensureFaceModels();
-    }
-    return;
-  }
-
-  stopFaceScanLoop();
-  stopVideoStream(faceScanVideo);
-  stopVideoStream(workerVideo);
+async function ensureWorkerCamera() {
+  await startVideoStream(workerVideo);
+  await waitForVideoReady(workerVideo);
 }
 
 async function startVideoStream(video) {
   if (video.srcObject) {
     return;
-  }
-
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    throw new Error("This phone browser does not support camera access.");
   }
 
   const stream = await navigator.mediaDevices.getUserMedia({
@@ -624,123 +619,21 @@ async function ensureFaceModels() {
   }
 
   if (!faceModelsLoading) {
-    faceModelsLoading = (async () => {
-      setMessage(faceStatus, "Loading face models...");
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL),
-        faceapi.nets.faceLandmark68TinyNet.loadFromUri(FACE_MODEL_URL),
-        faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODEL_URL)
-      ]);
+    faceModelsLoading = Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri(FACE_MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODEL_URL)
+    ]).then(() => {
       faceModelsReady = true;
-      setMessage(faceStatus, "Face scanner ready.");
-      faceHint.textContent = "One worker at a time. Hold the phone still for a moment.";
-    })();
+    });
   }
 
   return faceModelsLoading;
 }
 
-function startFaceScanLoop() {
-  if (faceScanTimer) {
-    return;
-  }
-
-  faceScanTimer = setInterval(() => {
-    scanCurrentFace().catch((error) => {
-      setMessage(faceStatus, error.message, true);
-    });
-  }, FACE_SCAN_INTERVAL_MS);
-}
-
-function stopFaceScanLoop() {
-  if (!faceScanTimer) {
-    return;
-  }
-
-  clearInterval(faceScanTimer);
-  faceScanTimer = null;
-}
-
-async function scanCurrentFace() {
-  if (!faceModelsReady || !faceScanVideo.srcObject || faceScanBusy) {
-    return;
-  }
-
-  if (employees.filter(hasRegisteredFace).length === 0) {
-    setMessage(faceStatus, "Register at least one worker face first.", true);
-    return;
-  }
-
-  faceScanBusy = true;
-
-  try {
-    const detection = await faceapi
-      .detectSingleFace(faceScanVideo, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
-      .withFaceLandmarks(true)
-      .withFaceDescriptor();
-
-    if (!detection) {
-      faceHint.textContent = "No face detected. Move closer and keep one face in the frame.";
-      return;
-    }
-
-    const match = findBestFaceMatch(detection.descriptor);
-    if (!match) {
-      faceHint.textContent = "Face found, but no saved worker matched it.";
-      return;
-    }
-
-    const now = Date.now();
-    if (match.employee.code === lastMatchedEmployeeCode && now - lastMatchedAt < FACE_SCAN_COOLDOWN_MS) {
-      faceHint.textContent = `${match.employee.name} was just scanned. Waiting a moment before scanning again.`;
-      return;
-    }
-
-    setMessage(faceStatus, `Recognized ${match.employee.name}. Saving scan...`);
-    const data = await sendJson("/api/scans", {
-      method: "POST",
-      body: {
-        employeeCode: match.employee.code,
-        requestedType: faceScanRequestedType(match.employee.code)
-      }
-    });
-
-    lastMatchedEmployeeCode = match.employee.code;
-    lastMatchedAt = now;
-    const greeting = greetingForEvent(data.scan.type, data.scan.employeeName);
-    setMessage(faceStatus, greeting);
-    faceHint.textContent = `${formatEvent(data.scan.type)} at ${formatDateTime(data.scan.timestamp)}.`;
-    speakMessage(greeting);
-    await refreshAll();
-  } finally {
-    faceScanBusy = false;
-  }
-}
-
-function findBestFaceMatch(descriptor) {
-  let best = null;
-
-  for (const employee of employees.filter(hasRegisteredFace)) {
-    const distance = faceapi.euclideanDistance(descriptor, employee.faceDescriptor);
-    if (distance > FACE_MATCH_THRESHOLD) {
-      continue;
-    }
-
-    if (!best || distance < best.distance) {
-      best = { employee, distance };
-    }
-  }
-
-  return best;
-}
-
-async function detectFaceDescriptor(video) {
-  if (!video.srcObject) {
-    throw new Error("Open the worker camera first.");
-  }
-
+async function detectFaceDescriptor(source) {
   const detection = await faceapi
-    .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
+    .detectSingleFace(source, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
     .withFaceLandmarks(true)
     .withFaceDescriptor();
 
@@ -748,7 +641,7 @@ async function detectFaceDescriptor(video) {
     throw new Error("No face found. Move closer and capture again.");
   }
 
-  return Array.from(detection.descriptor);
+  return detection;
 }
 
 function captureVideoFrame(video, canvas) {
@@ -758,7 +651,6 @@ function captureVideoFrame(video, canvas) {
   canvas.height = height;
   const context = canvas.getContext("2d");
   context.drawImage(video, 0, 0, width, height);
-  return canvas.toDataURL("image/jpeg", 0.9);
 }
 
 function renderFacePreview() {
@@ -775,58 +667,6 @@ function renderFacePreview() {
   `;
 }
 
-function greetingForEvent(type, employeeName) {
-  switch (type) {
-    case "clock_in":
-      return `Welcome ${employeeName}`;
-    case "clock_out":
-      return `Bye ${employeeName}`;
-    default:
-      return `${employeeName} scanned successfully`;
-  }
-}
-
-function faceScanRequestedType(employeeCode) {
-  const today = todayDateValue();
-  const employeeRows = Array.isArray(window.__latestTodayScans)
-    ? window.__latestTodayScans.filter((scan) => scan.employeeCode === employeeCode)
-    : [];
-
-  if (employeeRows.length === 0) {
-    return "clock_in";
-  }
-
-  const lastScan = employeeRows
-    .filter((scan) => String(scan.timestamp || "").startsWith(today))
-    .sort((left, right) => new Date(right.timestamp) - new Date(left.timestamp))[0];
-
-  if (!lastScan) {
-    return "clock_in";
-  }
-
-  if (lastScan.type === "clock_in") {
-    return "clock_out";
-  }
-
-  return "clock_in";
-}
-
-function speakMessage(message) {
-  if (!("speechSynthesis" in window)) {
-    return;
-  }
-
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(message);
-  utterance.rate = 0.95;
-  utterance.pitch = 1;
-  window.speechSynthesis.speak(utterance);
-}
-
-function hasRegisteredFace(employee) {
-  return Array.isArray(employee.faceDescriptor) && employee.faceDescriptor.length === 128;
-}
-
 async function sendJson(url, { method, body }) {
   const response = await fetch(url, {
     method,
@@ -838,6 +678,22 @@ async function sendJson(url, { method, body }) {
     throw new Error(data.error || "Request failed.");
   }
   return data;
+}
+
+async function waitForVideoReady(video) {
+  if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+    return;
+  }
+
+  await new Promise((resolve) => {
+    const onReady = () => {
+      video.removeEventListener("loadeddata", onReady);
+      video.removeEventListener("canplay", onReady);
+      resolve();
+    };
+    video.addEventListener("loadeddata", onReady);
+    video.addEventListener("canplay", onReady);
+  });
 }
 
 function setMessage(node, text, isError = false) {
@@ -903,18 +759,13 @@ function escapeAttribute(value) {
   return escapeHtml(value);
 }
 
-refreshAll().catch((error) => {
-  setMessage(faceStatus, error.message, true);
-});
-setActiveTab(activeTab);
-renderFacePreview();
-refreshTimer = setInterval(() => {
-  refreshAll().catch(() => {});
-}, 10000);
+if (sessionStorage.getItem(ADMIN_SESSION_KEY) === "ok") {
+  unlockAdmin().catch((error) => {
+    setMessage(loginMessage, error.message, true);
+  });
+}
 
 window.addEventListener("beforeunload", () => {
-  stopFaceScanLoop();
-  stopVideoStream(faceScanVideo);
   stopVideoStream(workerVideo);
   if (refreshTimer) {
     clearInterval(refreshTimer);
