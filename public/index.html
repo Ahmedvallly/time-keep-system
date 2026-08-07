@@ -11,9 +11,9 @@
       <section class="hero">
         <div>
           <p class="eyebrow">Attendance control</p>
-          <h1>Time in, break out, break in, time out.</h1>
+          <h1>Clock in and clock out.</h1>
           <p class="lede">
-            Each scan advances the worker through the day: start work, start break, back from break, end work.
+            Each scan alternates between clock in and clock out for each worker through the day.
             Export the results to CSV for Excel and payroll checking.
           </p>
         </div>
@@ -86,7 +86,6 @@
                 <th>Absent days</th>
                 <th>Target hrs</th>
                 <th>Worked hrs</th>
-                <th>Break hrs</th>
                 <th>Leave left</th>
                 <th>Balance</th>
               </tr>
@@ -207,8 +206,6 @@
             <input name="timestamp" id="manualTimestamp" type="datetime-local" required>
             <select name="type" required>
               <option value="clock_in">Clock in</option>
-              <option value="break_out">Break out</option>
-              <option value="break_in">Break in</option>
               <option value="clock_out">Clock out</option>
             </select>
             <button class="button" type="submit">Add time row</button>

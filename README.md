@@ -1,19 +1,20 @@
 # Time Keep System
 
-Attendance tracker with a MongoDB Atlas backend and a Vercel-ready deployment target.
+Attendance tracker with a MongoDB Atlas backend, a Vercel-ready deployment target, and a phone face-scanner flow.
 
 The server now stores worker, scan, leave, and holiday data in MongoDB. The JSON files in `data/` are only local snapshots for inspection and fallback.
 
 ## What it does
 
-- Records each scan against a worker code.
-- Automatically advances the worker through this daily flow:
+- Records each scan against a worker code or a saved worker face.
+- Alternates each worker through this daily flow:
   1. `clock_in`
-  2. `break_out`
-  3. `break_in`
+  2. `clock_out`
+  3. `clock_in`
   4. `clock_out`
 - Supports different monthly target hours per worker.
-- Calculates worked hours and break hours from scan pairs.
+- Calculates worked hours from clock-in and clock-out pairs.
+- If a past day has a `clock_in` but no `clock_out`, it counts as a normal 8-hour day.
 - Exports a payroll summary CSV that opens directly in Excel.
 - Exports raw monthly time rows for Excel editing and imports the edited CSV back.
 - Automatically keeps a live Excel-ready CSV updated after every scan.
@@ -81,6 +82,21 @@ Once the APK is rebuilt with the Vercel URL, every device using that app talks t
 If you only want one month, use **Export times for Excel** to download that month separately.
 
 You can also use the **Adjust times** section in the app to fix a row manually without opening Excel.
+
+## Face scan flow
+
+The mobile screen now has two main pages:
+
+- `Workers`: add a worker, open the front camera, capture their face, and save the face profile with the worker record.
+- `Face scan`: keep the front camera open and let workers scan themselves in and out all day.
+
+When a worker face is recognized:
+
+- the first scan of the day becomes `clock_in`
+- the next scan becomes `clock_out`
+- then it alternates again
+
+The mobile face scanner uses browser camera access and loads face-recognition models from a CDN, so the phone needs camera permission and internet access.
 
 ## Fingerprint device options
 

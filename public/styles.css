@@ -361,7 +361,7 @@ tbody tr:last-child td {
 
 .mobile-quicknav {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   padding: 4px;
   border-radius: 18px;
@@ -475,6 +475,72 @@ tbody tr:last-child td {
 
 .mobile-card .stack-form {
   gap: 10px;
+}
+
+.mobile-camera-shell {
+  position: relative;
+  overflow: hidden;
+  border-radius: 18px;
+  background: #101510;
+  min-height: 320px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(216, 204, 183, 0.5);
+}
+
+.mobile-camera-shell-compact {
+  min-height: 260px;
+}
+
+.mobile-camera-video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.mobile-camera-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.22));
+}
+
+.mobile-camera-target {
+  width: min(68vw, 240px);
+  aspect-ratio: 0.78;
+  border-radius: 44% 44% 42% 42%;
+  border: 3px solid rgba(255, 250, 241, 0.92);
+  box-shadow: 0 0 0 999px rgba(16, 21, 16, 0.28);
+}
+
+.mobile-scan-status {
+  display: grid;
+  gap: 4px;
+}
+
+.mobile-face-preview {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.mobile-face-preview img {
+  width: 100%;
+  max-width: 220px;
+  border-radius: 14px;
+  border: 1px solid rgba(47, 93, 80, 0.14);
+}
+
+.mobile-face-preview p {
+  margin: 0;
+  color: var(--muted);
 }
 
 .mobile-card input,

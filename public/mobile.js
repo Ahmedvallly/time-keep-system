@@ -1,10 +1,21 @@
-const EVENT_TYPES = ["clock_in", "break_out", "break_in", "clock_out"];
+const EVENT_TYPES = ["clock_in", "clock_out"];
+const FACE_MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights";
+const FACE_MATCH_THRESHOLD = 0.5;
+const FACE_SCAN_INTERVAL_MS = 1400;
+const FACE_SCAN_COOLDOWN_MS = 12000;
 
 const monthPicker = document.getElementById("mobileMonthPicker");
 const summaryNode = document.getElementById("mobileSummary");
-const scanForm = document.getElementById("mobileScanForm");
-const scanCode = document.getElementById("mobileScanCode");
-const scanMessage = document.getElementById("mobileScanMessage");
+const faceScanVideo = document.getElementById("mobileFaceScanVideo");
+const workerVideo = document.getElementById("mobileWorkerVideo");
+const workerCanvas = document.getElementById("mobileWorkerCanvas");
+const faceStatus = document.getElementById("mobileFaceStatus");
+const faceHint = document.getElementById("mobileFaceHint");
+const workerForm = document.getElementById("mobileWorkerForm");
+const workerMessage = document.getElementById("mobileWorkerMessage");
+const captureFaceButton = document.getElementById("mobileCaptureFaceButton");
+const facePreview = document.getElementById("mobileFacePreview");
+const workersNode = document.getElementById("mobileWorkers");
 const manualForm = document.getElementById("mobileManualForm");
 const employeeSelect = document.getElementById("mobileEmployeeCode");
 const timestampInput = document.getElementById("mobileTimestamp");
@@ -32,7 +43,15 @@ const tabPanels = Array.from(document.querySelectorAll("[data-tab-panel]"));
 let employees = [];
 let refreshTimer = null;
 let editingLeaveId = null;
-let activeTab = "scan";
+let activeTab = "face-scan";
+let faceModelsReady = false;
+let faceModelsLoading = null;
+let faceScanTimer = null;
+let faceScanBusy = false;
+let lastMatchedEmployeeCode = "";
+let lastMatchedAt = 0;
+let capturedFaceDescriptor = [];
+let capturedFacePreviewUrl = "";
 
 monthPicker.value = new Date().toISOString().slice(0, 7);
 timestampInput.value = nowLocalValue();
@@ -42,29 +61,60 @@ holidayDate.value = todayDateValue();
 
 for (const button of tabButtons) {
   button.addEventListener("click", () => {
-    setActiveTab(button.dataset.tab || "scan");
+    setActiveTab(button.dataset.tab || "face-scan");
   });
 }
 
-scanForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  setMessage(scanMessage, "Saving scan...");
+captureFaceButton.addEventListener("click", async () => {
+  captureFaceButton.disabled = true;
+  setMessage(workerMessage, "Capturing face...");
 
   try {
-    const data = await sendJson("/api/scans", {
+    await ensureFaceModels();
+    const descriptor = await detectFaceDescriptor(workerVideo);
+    capturedFaceDescriptor = descriptor;
+    capturedFacePreviewUrl = captureVideoFrame(workerVideo, workerCanvas);
+    renderFacePreview();
+    setMessage(workerMessage, "Face captured. Save the worker now.");
+  } catch (error) {
+    setMessage(workerMessage, error.message, true);
+  } finally {
+    captureFaceButton.disabled = false;
+  }
+});
+
+workerForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const formData = new FormData(workerForm);
+
+  if (capturedFaceDescriptor.length !== 128) {
+    setMessage(workerMessage, "Capture the worker face before saving.", true);
+    return;
+  }
+
+  setMessage(workerMessage, "Saving worker...");
+
+  try {
+    const employee = await sendJson("/api/employees", {
       method: "POST",
-      body: { employeeCode: scanCode.value.trim() }
+      body: {
+        name: formData.get("name"),
+        code: formData.get("code"),
+        monthlyTargetHours: Number(formData.get("monthlyTargetHours")),
+        notes: formData.get("notes"),
+        faceDescriptor: capturedFaceDescriptor
+      }
     });
 
-    scanCode.value = "";
-    setMessage(
-      scanMessage,
-      `${data.scan.employeeName}: ${formatEvent(data.scan.type)} at ${formatDateTime(data.scan.timestamp)}`
-    );
+    workerForm.reset();
+    document.getElementById("mobileWorkerTargetHours").value = "176";
+    capturedFaceDescriptor = [];
+    capturedFacePreviewUrl = "";
+    renderFacePreview();
+    setMessage(workerMessage, `Saved ${employee.name} with a face profile.`);
     await refreshAll();
-    scanCode.focus();
   } catch (error) {
-    setMessage(scanMessage, error.message, true);
+    setMessage(workerMessage, error.message, true);
   }
 });
 
@@ -148,12 +198,14 @@ holidayForm.addEventListener("submit", async (event) => {
 monthPicker.addEventListener("change", refreshAll);
 
 async function refreshAll() {
+  await loadEmployees();
   await Promise.all([loadDashboard(), loadTimes(), loadLeaves(), loadHolidays()]);
 }
 
 async function loadDashboard() {
   const response = await fetch(`/api/dashboard?month=${monthPicker.value}`);
   const data = await response.json();
+  window.__latestTodayScans = data.todayScans;
   renderSummary(data.workers, data.todayScans);
   renderActivity(data.todayScans);
 }
@@ -161,8 +213,7 @@ async function loadDashboard() {
 async function loadTimes() {
   const response = await fetch(`/api/times?month=${monthPicker.value}`);
   const data = await response.json();
-  employees = data.employees;
-  renderEmployeeOptions();
+  renderEmployeeOptions(data.employees);
   renderTimes(data.rows);
 }
 
@@ -179,11 +230,22 @@ async function loadHolidays() {
   renderHolidays(data.rows);
 }
 
+async function loadEmployees() {
+  const response = await fetch("/api/employees");
+  employees = await response.json();
+  renderEmployeeOptions(employees);
+  renderWorkers();
+}
+
 function renderSummary(workers, todayScans) {
   const workingCount = workers.filter((worker) => worker.status === "Working").length;
   const breakCount = workers.filter((worker) => worker.status === "On break").length;
   const finishedCount = workers.filter((worker) => worker.status === "Finished").length;
   const absentCount = workers.filter((worker) => Number(worker.absentDays || 0) > 0).length;
+  const readyFaces = workers.filter((worker) => {
+    const employee = employees.find((entry) => entry.code === worker.code);
+    return employee && Array.isArray(employee.faceDescriptor) && employee.faceDescriptor.length === 128;
+  }).length;
 
   summaryNode.innerHTML = [
     summaryCard("Today scans", String(todayScans.length), "Live today"),
@@ -191,7 +253,7 @@ function renderSummary(workers, todayScans) {
     summaryCard("On break", String(breakCount), "Break status"),
     summaryCard("Finished", String(finishedCount), "Done today"),
     summaryCard("Workers", String(workers.length), "Total staff"),
-    summaryCard("Absences", String(absentCount), "This month")
+    summaryCard("Faces ready", String(readyFaces), "Can scan")
   ].join("");
 }
 
@@ -205,13 +267,13 @@ function summaryCard(label, value, helper) {
   `;
 }
 
-function renderEmployeeOptions() {
+function renderEmployeeOptions(list) {
   const previousManual = employeeSelect.value;
   const previousLeave = leaveEmployeeCode.value;
   employeeSelect.innerHTML = `<option value="">Select worker</option>`;
   leaveEmployeeCode.innerHTML = `<option value="">Select worker</option>`;
 
-  for (const employee of employees) {
+  for (const employee of list) {
     const option = document.createElement("option");
     option.value = employee.code;
     option.textContent = `${employee.code} - ${employee.name}`;
@@ -225,6 +287,32 @@ function renderEmployeeOptions() {
 
   employeeSelect.value = previousManual;
   leaveEmployeeCode.value = previousLeave;
+}
+
+function renderWorkers() {
+  if (employees.length === 0) {
+    workersNode.innerHTML = `<p class="mobile-empty">No workers saved yet.</p>`;
+    return;
+  }
+
+  workersNode.innerHTML = employees
+    .map((employee) => {
+      const hasFace = Array.isArray(employee.faceDescriptor) && employee.faceDescriptor.length === 128;
+      return `
+        <article class="mobile-data-card">
+          <div class="mobile-card-topline">
+            <strong>${escapeHtml(employee.name)}</strong>
+            <span class="mobile-badge">${hasFace ? "Face ready" : "No face"}</span>
+          </div>
+          <div class="mobile-detail-list">
+            <p><span>Code</span>${escapeHtml(employee.code)}</p>
+            <p><span>Target hours</span>${Number(employee.monthlyTargetHours || 0).toFixed(2)}</p>
+            <p><span>Notes</span>${escapeHtml(employee.notes || "No notes")}</p>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function renderActivity(scans) {
@@ -452,6 +540,293 @@ function renderHolidays(rows) {
   }
 }
 
+function setActiveTab(tabName) {
+  activeTab = tabName;
+
+  for (const button of tabButtons) {
+    const isActive = button.dataset.tab === tabName;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+  }
+
+  for (const panel of tabPanels) {
+    const isActive = panel.dataset.tabPanel === tabName;
+    panel.classList.toggle("is-active", isActive);
+    panel.hidden = !isActive;
+  }
+
+  syncCameraState().catch((error) => {
+    setMessage(faceStatus, error.message, true);
+  });
+}
+
+async function syncCameraState() {
+  const wantsFaceScan = activeTab === "face-scan";
+  const wantsWorkerCamera = activeTab === "workers";
+
+  if (wantsFaceScan || wantsWorkerCamera) {
+    await startVideoStream(wantsFaceScan ? faceScanVideo : workerVideo);
+    if (wantsFaceScan) {
+      stopVideoStream(workerVideo);
+      await ensureFaceModels();
+      startFaceScanLoop();
+    } else {
+      stopFaceScanLoop();
+      stopVideoStream(faceScanVideo);
+      await ensureFaceModels();
+    }
+    return;
+  }
+
+  stopFaceScanLoop();
+  stopVideoStream(faceScanVideo);
+  stopVideoStream(workerVideo);
+}
+
+async function startVideoStream(video) {
+  if (video.srcObject) {
+    return;
+  }
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    throw new Error("This phone browser does not support camera access.");
+  }
+
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: false,
+    video: {
+      facingMode: "user",
+      width: { ideal: 720 },
+      height: { ideal: 1280 }
+    }
+  });
+
+  video.srcObject = stream;
+  await video.play();
+}
+
+function stopVideoStream(video) {
+  const stream = video.srcObject;
+  if (!stream) {
+    return;
+  }
+
+  for (const track of stream.getTracks()) {
+    track.stop();
+  }
+
+  video.srcObject = null;
+}
+
+async function ensureFaceModels() {
+  if (faceModelsReady) {
+    return;
+  }
+
+  if (!faceModelsLoading) {
+    faceModelsLoading = (async () => {
+      setMessage(faceStatus, "Loading face models...");
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL),
+        faceapi.nets.faceLandmark68TinyNet.loadFromUri(FACE_MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODEL_URL)
+      ]);
+      faceModelsReady = true;
+      setMessage(faceStatus, "Face scanner ready.");
+      faceHint.textContent = "One worker at a time. Hold the phone still for a moment.";
+    })();
+  }
+
+  return faceModelsLoading;
+}
+
+function startFaceScanLoop() {
+  if (faceScanTimer) {
+    return;
+  }
+
+  faceScanTimer = setInterval(() => {
+    scanCurrentFace().catch((error) => {
+      setMessage(faceStatus, error.message, true);
+    });
+  }, FACE_SCAN_INTERVAL_MS);
+}
+
+function stopFaceScanLoop() {
+  if (!faceScanTimer) {
+    return;
+  }
+
+  clearInterval(faceScanTimer);
+  faceScanTimer = null;
+}
+
+async function scanCurrentFace() {
+  if (!faceModelsReady || !faceScanVideo.srcObject || faceScanBusy) {
+    return;
+  }
+
+  if (employees.filter(hasRegisteredFace).length === 0) {
+    setMessage(faceStatus, "Register at least one worker face first.", true);
+    return;
+  }
+
+  faceScanBusy = true;
+
+  try {
+    const detection = await faceapi
+      .detectSingleFace(faceScanVideo, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
+      .withFaceLandmarks(true)
+      .withFaceDescriptor();
+
+    if (!detection) {
+      faceHint.textContent = "No face detected. Move closer and keep one face in the frame.";
+      return;
+    }
+
+    const match = findBestFaceMatch(detection.descriptor);
+    if (!match) {
+      faceHint.textContent = "Face found, but no saved worker matched it.";
+      return;
+    }
+
+    const now = Date.now();
+    if (match.employee.code === lastMatchedEmployeeCode && now - lastMatchedAt < FACE_SCAN_COOLDOWN_MS) {
+      faceHint.textContent = `${match.employee.name} was just scanned. Waiting a moment before scanning again.`;
+      return;
+    }
+
+    setMessage(faceStatus, `Recognized ${match.employee.name}. Saving scan...`);
+    const data = await sendJson("/api/scans", {
+      method: "POST",
+      body: {
+        employeeCode: match.employee.code,
+        requestedType: faceScanRequestedType(match.employee.code)
+      }
+    });
+
+    lastMatchedEmployeeCode = match.employee.code;
+    lastMatchedAt = now;
+    const greeting = greetingForEvent(data.scan.type, data.scan.employeeName);
+    setMessage(faceStatus, greeting);
+    faceHint.textContent = `${formatEvent(data.scan.type)} at ${formatDateTime(data.scan.timestamp)}.`;
+    speakMessage(greeting);
+    await refreshAll();
+  } finally {
+    faceScanBusy = false;
+  }
+}
+
+function findBestFaceMatch(descriptor) {
+  let best = null;
+
+  for (const employee of employees.filter(hasRegisteredFace)) {
+    const distance = faceapi.euclideanDistance(descriptor, employee.faceDescriptor);
+    if (distance > FACE_MATCH_THRESHOLD) {
+      continue;
+    }
+
+    if (!best || distance < best.distance) {
+      best = { employee, distance };
+    }
+  }
+
+  return best;
+}
+
+async function detectFaceDescriptor(video) {
+  if (!video.srcObject) {
+    throw new Error("Open the worker camera first.");
+  }
+
+  const detection = await faceapi
+    .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
+    .withFaceLandmarks(true)
+    .withFaceDescriptor();
+
+  if (!detection) {
+    throw new Error("No face found. Move closer and capture again.");
+  }
+
+  return Array.from(detection.descriptor);
+}
+
+function captureVideoFrame(video, canvas) {
+  const width = video.videoWidth || 480;
+  const height = video.videoHeight || 640;
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  context.drawImage(video, 0, 0, width, height);
+  return canvas.toDataURL("image/jpeg", 0.9);
+}
+
+function renderFacePreview() {
+  if (!capturedFacePreviewUrl) {
+    facePreview.className = "mobile-face-preview mobile-empty";
+    facePreview.textContent = "No face captured yet.";
+    return;
+  }
+
+  facePreview.className = "mobile-face-preview";
+  facePreview.innerHTML = `
+    <img src="${capturedFacePreviewUrl}" alt="Captured worker face">
+    <p>Face captured and ready to save.</p>
+  `;
+}
+
+function greetingForEvent(type, employeeName) {
+  switch (type) {
+    case "clock_in":
+      return `Welcome ${employeeName}`;
+    case "clock_out":
+      return `Bye ${employeeName}`;
+    default:
+      return `${employeeName} scanned successfully`;
+  }
+}
+
+function faceScanRequestedType(employeeCode) {
+  const today = todayDateValue();
+  const employeeRows = Array.isArray(window.__latestTodayScans)
+    ? window.__latestTodayScans.filter((scan) => scan.employeeCode === employeeCode)
+    : [];
+
+  if (employeeRows.length === 0) {
+    return "clock_in";
+  }
+
+  const lastScan = employeeRows
+    .filter((scan) => String(scan.timestamp || "").startsWith(today))
+    .sort((left, right) => new Date(right.timestamp) - new Date(left.timestamp))[0];
+
+  if (!lastScan) {
+    return "clock_in";
+  }
+
+  if (lastScan.type === "clock_in") {
+    return "clock_out";
+  }
+
+  return "clock_in";
+}
+
+function speakMessage(message) {
+  if (!("speechSynthesis" in window)) {
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(message);
+  utterance.rate = 0.95;
+  utterance.pitch = 1;
+  window.speechSynthesis.speak(utterance);
+}
+
+function hasRegisteredFace(employee) {
+  return Array.isArray(employee.faceDescriptor) && employee.faceDescriptor.length === 128;
+}
+
 async function sendJson(url, { method, body }) {
   const response = await fetch(url, {
     method,
@@ -515,22 +890,6 @@ function resetLeaveForm() {
   leaveCancelButton.hidden = true;
 }
 
-function setActiveTab(tabName) {
-  activeTab = tabName;
-
-  for (const button of tabButtons) {
-    const isActive = button.dataset.tab === tabName;
-    button.classList.toggle("is-active", isActive);
-    button.setAttribute("aria-selected", String(isActive));
-  }
-
-  for (const panel of tabPanels) {
-    const isActive = panel.dataset.tabPanel === tabName;
-    panel.classList.toggle("is-active", isActive);
-    panel.hidden = !isActive;
-  }
-}
-
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -544,11 +903,19 @@ function escapeAttribute(value) {
   return escapeHtml(value);
 }
 
-refreshAll();
+refreshAll().catch((error) => {
+  setMessage(faceStatus, error.message, true);
+});
 setActiveTab(activeTab);
-refreshTimer = setInterval(refreshAll, 10000);
+renderFacePreview();
+refreshTimer = setInterval(() => {
+  refreshAll().catch(() => {});
+}, 10000);
 
 window.addEventListener("beforeunload", () => {
+  stopFaceScanLoop();
+  stopVideoStream(faceScanVideo);
+  stopVideoStream(workerVideo);
   if (refreshTimer) {
     clearInterval(refreshTimer);
   }

@@ -344,12 +344,21 @@ async function upsertEmployee(input) {
 
   const employees = getEmployees();
   const existingIndex = employees.findIndex((employee) => employee.code === code);
+  const existingEmployee = existingIndex >= 0 ? employees[existingIndex] : null;
+  const hasIncomingFaceDescriptor = Object.prototype.hasOwnProperty.call(input, "faceDescriptor");
+  const faceDescriptor = hasIncomingFaceDescriptor
+    ? normalizeFaceDescriptor(input.faceDescriptor)
+    : normalizeFaceDescriptor(existingEmployee ? existingEmployee.faceDescriptor : []);
   const employee = {
-    id: existingIndex >= 0 ? employees[existingIndex].id : `emp-${Date.now()}`,
+    id: existingEmployee ? existingEmployee.id : `emp-${Date.now()}`,
     code,
     name,
     monthlyTargetHours,
-    notes
+    notes,
+    faceDescriptor,
+    faceUpdatedAt: faceDescriptor.length > 0
+      ? (hasIncomingFaceDescriptor ? new Date().toISOString() : String(existingEmployee?.faceUpdatedAt || ""))
+      : String(existingEmployee?.faceUpdatedAt || "")
   };
 
   if (existingIndex >= 0) {
@@ -366,6 +375,7 @@ async function upsertEmployee(input) {
 async function recordScan(input) {
   const employeeCode = String(input.employeeCode || "").trim();
   const scanTime = input.timestamp ? new Date(input.timestamp) : new Date();
+  const requestedType = input.requestedType ? normalizeEventType(input.requestedType) : "";
 
   if (!employeeCode) {
     throw httpError(400, "Employee code is required.");
@@ -382,7 +392,7 @@ async function recordScan(input) {
   }
 
   const scans = getScans();
-  const nextType = inferNextEventType(scans, employee.code, scanTime);
+  const nextType = inferNextEventType(scans, employee.code, scanTime, requestedType);
   const scan = {
     id: nextScanId(),
     employeeCode: employee.code,
@@ -554,26 +564,37 @@ async function deleteHoliday(holidayId) {
   await db.replaceHolidays(nextHolidays);
 }
 
-function inferNextEventType(scans, employeeCode, scanTime) {
+function inferNextEventType(scans, employeeCode, scanTime, requestedType = "") {
   const dayScans = scans
     .filter((scan) => scan.employeeCode === employeeCode && dateKey(new Date(scan.timestamp)) === dateKey(scanTime))
     .sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp));
 
   if (dayScans.length === 0) {
+    if (requestedType && requestedType !== "clock_in") {
+      throw httpError(400, "The first scan of the day must be a clock in.");
+    }
     return "clock_in";
   }
 
   const lastType = dayScans[dayScans.length - 1].type;
   if (lastType === "clock_in") {
-    return "break_out";
-  }
+    if (requestedType === "clock_out") {
+      return "clock_out";
+    }
 
-  if (lastType === "break_out") {
-    return "break_in";
-  }
+    if (requestedType && requestedType !== "clock_out") {
+      throw httpError(400, "After clock in, the next scan must be clock out.");
+    }
 
-  if (lastType === "break_in") {
     return "clock_out";
+  }
+
+  if (lastType === "clock_out") {
+    if (requestedType && requestedType !== "clock_in") {
+      throw httpError(400, "After clock out, the next scan must be clock in.");
+    }
+
+    return "clock_in";
   }
 
   return "clock_in";
@@ -621,10 +642,8 @@ function buildDashboard(monthParam) {
     workers,
     todayScans,
     eventLegend: {
-      clock_in: "Start work",
-      break_out: "Start break",
-      break_in: "Back from break",
-      clock_out: "End work"
+      clock_in: "Clock in",
+      clock_out: "Clock out"
     }
   };
 }
@@ -663,7 +682,8 @@ function buildTimesheet(monthParam) {
     month,
     employees: employees.map((employee) => ({
       code: employee.code,
-      name: employee.name
+      name: employee.name,
+      hasFace: Array.isArray(employee.faceDescriptor) && employee.faceDescriptor.length > 0
     })),
     rows: scans.map((scan) => ({
       ...scan,
@@ -738,10 +758,6 @@ function currentState(todayScans) {
   const lastType = todayScans[0].type;
   switch (lastType) {
     case "clock_in":
-      return "Working";
-    case "break_out":
-      return "On break";
-    case "break_in":
       return "Working";
     case "clock_out":
       return "Finished";
@@ -818,33 +834,34 @@ function summarizeDayForEmployee(scans, employeeCode, day) {
 function summarizeScans(scans) {
   const ordered = [...scans].sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp));
   let shiftStart = null;
-  let breakStart = null;
   let workedMinutes = 0;
-  let breakMinutes = 0;
 
   for (const scan of ordered) {
     const when = new Date(scan.timestamp);
     if (scan.type === "clock_in") {
       shiftStart = when;
-    } else if (scan.type === "break_out" && shiftStart) {
-      workedMinutes += diffMinutes(shiftStart, when);
-      breakStart = when;
-      shiftStart = null;
-    } else if (scan.type === "break_in" && breakStart) {
-      breakMinutes += diffMinutes(breakStart, when);
-      shiftStart = when;
-      breakStart = null;
     } else if (scan.type === "clock_out" && shiftStart) {
       workedMinutes += diffMinutes(shiftStart, when);
       shiftStart = null;
     }
   }
 
+  if (ordered.length > 0) {
+    const day = dateKey(new Date(ordered[ordered.length - 1].timestamp));
+    const isPastDay = day < dateKey(new Date());
+    const hasClockIn = ordered.some((scan) => scan.type === "clock_in");
+    const hasClockOut = ordered.some((scan) => scan.type === "clock_out");
+
+    if (isPastDay && hasClockIn && !hasClockOut) {
+      workedMinutes = 8 * 60;
+    }
+  }
+
   return {
     workedMinutes,
-    breakMinutes,
+    breakMinutes: 0,
     workedHours: minutesToHours(workedMinutes),
-    breakHours: minutesToHours(breakMinutes)
+    breakHours: 0
   };
 }
 
@@ -1301,6 +1318,26 @@ function normalizeEventType(type) {
     throw httpError(400, `Event type must be one of: ${EVENT_TYPES.join(", ")}.`);
   }
   return value;
+}
+
+function normalizeFaceDescriptor(value) {
+  if (value == null || value === "") {
+    return [];
+  }
+
+  if (!Array.isArray(value)) {
+    throw httpError(400, "Face descriptor must be an array of numbers.");
+  }
+
+  const descriptor = value
+    .map((entry) => Number(entry))
+    .filter((entry) => Number.isFinite(entry));
+
+  if (descriptor.length > 0 && descriptor.length !== 128) {
+    throw httpError(400, "Face descriptor must contain 128 numeric values.");
+  }
+
+  return descriptor;
 }
 
 function normalizeLeaveType(type) {

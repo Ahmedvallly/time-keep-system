@@ -152,7 +152,9 @@ async function replaceEmployees(employees) {
       code: String(employee.code),
       name: String(employee.name),
       monthlyTargetHours: Number(employee.monthlyTargetHours),
-      notes: String(employee.notes || "")
+      notes: String(employee.notes || ""),
+      faceDescriptor: normalizeFaceDescriptor(employee.faceDescriptor),
+      faceUpdatedAt: employee.faceUpdatedAt ? String(employee.faceUpdatedAt) : ""
     }))
     .sort((left, right) => left.name.localeCompare(right.name) || left.code.localeCompare(right.code));
 
@@ -245,8 +247,20 @@ function toEmployee(document) {
     code: document.code,
     name: document.name,
     monthlyTargetHours: Number(document.monthlyTargetHours),
-    notes: document.notes || ""
+    notes: document.notes || "",
+    faceDescriptor: normalizeFaceDescriptor(document.faceDescriptor),
+    faceUpdatedAt: document.faceUpdatedAt || ""
   };
+}
+
+function normalizeFaceDescriptor(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => Number(entry))
+    .filter((entry) => Number.isFinite(entry));
 }
 
 function toScan(document) {

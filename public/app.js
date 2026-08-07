@@ -1,4 +1,4 @@
-const EVENT_TYPES = ["clock_in", "break_out", "break_in", "clock_out"];
+const EVENT_TYPES = ["clock_in", "clock_out"];
 
 const monthPicker = document.getElementById("monthPicker");
 const exportLink = document.getElementById("exportLink");
@@ -253,7 +253,7 @@ function renderWorkers(workers) {
   workersBody.innerHTML = "";
 
   if (workers.length === 0) {
-    workersBody.innerHTML = `<tr><td colspan="11">No workers saved yet.</td></tr>`;
+    workersBody.innerHTML = `<tr><td colspan="10">No workers saved yet.</td></tr>`;
     return;
   }
 
@@ -269,7 +269,6 @@ function renderWorkers(workers) {
       <td>${Number(worker.absentDays || 0)}</td>
       <td>${Number(worker.monthlyTargetHours).toFixed(2)}</td>
       <td>${Number(worker.workedHours).toFixed(2)}</td>
-      <td>${Number(worker.breakHours).toFixed(2)}</td>
       <td>${Number(worker.leaveRemainingDays || 0).toFixed(2)}</td>
       <td class="${balanceClass}">${Number(worker.balanceHours).toFixed(2)}</td>
     `;
