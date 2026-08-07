@@ -56,6 +56,8 @@ leaveStartDate.value = todayDateValue();
 leaveEndDate.value = todayDateValue();
 holidayDate.value = todayDateValue();
 
+lockAdmin();
+
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(loginForm);
@@ -63,6 +65,8 @@ loginForm.addEventListener("submit", async (event) => {
   const password = String(formData.get("password") || "");
 
   if (username !== ADMIN_USERNAME || password !== ADMIN_PASSWORD) {
+    sessionStorage.removeItem(ADMIN_SESSION_KEY);
+    lockAdmin();
     setMessage(loginMessage, "Incorrect username or password.", true);
     return;
   }
@@ -75,13 +79,7 @@ loginForm.addEventListener("submit", async (event) => {
 
 logoutButton.addEventListener("click", () => {
   sessionStorage.removeItem(ADMIN_SESSION_KEY);
-  stopVideoStream(workerVideo);
-  if (refreshTimer) {
-    clearInterval(refreshTimer);
-    refreshTimer = null;
-  }
-  authShell.hidden = false;
-  adminApp.hidden = true;
+  lockAdmin();
 });
 
 for (const button of tabButtons) {
@@ -227,12 +225,26 @@ monthPicker.addEventListener("change", refreshAll);
 async function unlockAdmin() {
   authShell.hidden = true;
   adminApp.hidden = false;
+  adminApp.setAttribute("aria-hidden", "false");
   await refreshAll();
   setActiveTab(activeTab);
   renderFacePreview();
-  refreshTimer = setInterval(() => {
-    refreshAll().catch(() => {});
-  }, 10000);
+  if (!refreshTimer) {
+    refreshTimer = setInterval(() => {
+      refreshAll().catch(() => {});
+    }, 10000);
+  }
+}
+
+function lockAdmin() {
+  stopVideoStream(workerVideo);
+  if (refreshTimer) {
+    clearInterval(refreshTimer);
+    refreshTimer = null;
+  }
+  authShell.hidden = false;
+  adminApp.hidden = true;
+  adminApp.setAttribute("aria-hidden", "true");
 }
 
 async function refreshAll() {
