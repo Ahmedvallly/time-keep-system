@@ -64,6 +64,8 @@ let latestTimeRows = [];
 let latestHolidayRows = [];
 let topbarCollapsed = sessionStorage.getItem(TOPBAR_COLLAPSED_KEY) !== "0";
 let workerCameraOpen = false;
+let openTimeWorkerKeys = new Set();
+let openTimeDayKeys = new Set();
 
 monthPicker.value = new Date().toISOString().slice(0, 7);
 timestampInput.value = nowLocalValue();
@@ -422,6 +424,7 @@ function renderWorkers() {
 
 function renderTimes(rows) {
   latestTimeRows = rows;
+  captureOpenTimePanels();
 
   if (rows.length === 0) {
     timesNode.innerHTML = `<p class="mobile-empty">No time rows for this month.</p>`;
@@ -469,6 +472,7 @@ function renderTimes(rows) {
   for (const summary of summaries) {
     const workerDetails = document.createElement("details");
     workerDetails.className = "mobile-time-worker-row";
+    workerDetails.dataset.workerKey = summary.employeeCode;
     workerDetails.innerHTML = `
       <summary class="mobile-time-worker-summary">
         <span class="mobile-time-worker-name">
@@ -502,6 +506,7 @@ function renderTimes(rows) {
         <div class="mobile-list mobile-time-groups"></div>
       </div>
     `;
+    workerDetails.open = openTimeWorkerKeys.has(summary.employeeCode);
 
     const weekListNode = workerDetails.querySelector(".mobile-week-list");
     for (const week of summary.weeks) {
@@ -530,6 +535,7 @@ function renderTimes(rows) {
     for (const day of summary.days) {
       const dayCard = document.createElement("section");
       dayCard.className = "mobile-data-card mobile-time-group";
+      const dayKey = `${summary.employeeCode}__${day.date}`;
       dayCard.innerHTML = `
         <div class="mobile-card-topline">
           <div>
@@ -562,6 +568,9 @@ function renderTimes(rows) {
           <div class="mobile-list mobile-time-rows"></div>
         </details>
       `;
+      const dayDetails = dayCard.querySelector(".mobile-time-details");
+      dayDetails.dataset.dayKey = dayKey;
+      dayDetails.open = openTimeDayKeys.has(dayKey);
 
       const rowsNode = dayCard.querySelector(".mobile-time-rows");
       for (const row of day.rows) {
@@ -573,6 +582,28 @@ function renderTimes(rows) {
 
     bodyNode.appendChild(workerDetails);
   }
+}
+
+function captureOpenTimePanels() {
+  const workerKeys = new Set();
+  const dayKeys = new Set();
+
+  for (const node of timesNode.querySelectorAll(".mobile-time-worker-row[open]")) {
+    const key = String(node.dataset.workerKey || "").trim();
+    if (key) {
+      workerKeys.add(key);
+    }
+  }
+
+  for (const node of timesNode.querySelectorAll(".mobile-time-details[open]")) {
+    const key = String(node.dataset.dayKey || "").trim();
+    if (key) {
+      dayKeys.add(key);
+    }
+  }
+
+  openTimeWorkerKeys = workerKeys;
+  openTimeDayKeys = dayKeys;
 }
 
 function groupRowsByEmployee(rows) {
