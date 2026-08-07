@@ -90,15 +90,14 @@ for (const button of tabButtons) {
 
 captureFaceButton.addEventListener("click", async () => {
   captureFaceButton.disabled = true;
-  setMessage(workerMessage, "Capturing face...");
+  setMessage(workerMessage, "Capturing face. Hold still and keep one face in the frame...");
 
   try {
     await ensureWorkerCamera();
     await ensureFaceModels();
-    captureVideoFrame(workerVideo, workerCanvas);
-    const descriptor = await detectFaceDescriptor(workerCanvas);
-    capturedFaceDescriptor = Array.from(descriptor.descriptor);
-    capturedFacePreviewUrl = workerCanvas.toDataURL("image/jpeg", 0.9);
+    const capture = await captureWorkerFace(workerVideo, workerCanvas);
+    capturedFaceDescriptor = Array.from(capture.descriptor.descriptor);
+    capturedFacePreviewUrl = capture.previewUrl;
     renderFacePreview();
     setMessage(workerMessage, "Face captured. Save the worker now.");
   } catch (error) {
@@ -592,6 +591,7 @@ function setActiveTab(tabName) {
 async function ensureWorkerCamera() {
   await startVideoStream(workerVideo);
   await waitForVideoReady(workerVideo);
+  await pause(250);
 }
 
 async function startVideoStream(video) {
@@ -608,8 +608,12 @@ async function startVideoStream(video) {
     }
   });
 
+  video.autoplay = true;
+  video.muted = true;
+  video.playsInline = true;
   video.srcObject = stream;
   await video.play();
+  await waitForVideoReady(video);
 }
 
 function stopVideoStream(video) {
@@ -631,6 +635,7 @@ async function ensureFaceModels() {
   }
 
   if (!faceModelsLoading) {
+    setMessage(workerMessage, "Loading face detection...");
     faceModelsLoading = Promise.all([
       faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL),
       faceapi.nets.faceLandmark68TinyNet.loadFromUri(FACE_MODEL_URL),
@@ -643,17 +648,42 @@ async function ensureFaceModels() {
   return faceModelsLoading;
 }
 
-async function detectFaceDescriptor(source) {
-  const detection = await faceapi
-    .detectSingleFace(source, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 }))
-    .withFaceLandmarks(true)
-    .withFaceDescriptor();
+async function captureWorkerFace(video, canvas) {
+  const liveDetection = await tryDetectFaceDescriptor(video);
+  captureVideoFrame(video, canvas);
+  const previewUrl = canvas.toDataURL("image/jpeg", 0.9);
 
-  if (!detection) {
-    throw new Error("No face found. Move closer and capture again.");
+  if (liveDetection) {
+    return { descriptor: liveDetection, previewUrl };
   }
 
-  return detection;
+  const imageDetection = await tryDetectFaceDescriptor(canvas);
+  if (imageDetection) {
+    return { descriptor: imageDetection, previewUrl };
+  }
+
+  throw new Error("No face found. Keep one face in the frame, move into better light, and try again.");
+}
+
+async function tryDetectFaceDescriptor(source) {
+  const options = [
+    { inputSize: 320, scoreThreshold: 0.35 },
+    { inputSize: 224, scoreThreshold: 0.4 },
+    { inputSize: 160, scoreThreshold: 0.3 }
+  ];
+
+  for (const option of options) {
+    const detection = await faceapi
+      .detectSingleFace(source, new faceapi.TinyFaceDetectorOptions(option))
+      .withFaceLandmarks(true)
+      .withFaceDescriptor();
+
+    if (detection) {
+      return detection;
+    }
+  }
+
+  return null;
 }
 
 function captureVideoFrame(video, canvas) {
@@ -663,6 +693,12 @@ function captureVideoFrame(video, canvas) {
   canvas.height = height;
   const context = canvas.getContext("2d");
   context.drawImage(video, 0, 0, width, height);
+}
+
+function pause(ms) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
 }
 
 function renderFacePreview() {
