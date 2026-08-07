@@ -17,6 +17,9 @@ const topbarMain = document.getElementById("mobileTopbarMain");
 const topbarBody = document.getElementById("mobileTopbarBody");
 const monthPicker = document.getElementById("mobileMonthPicker");
 const summaryNode = document.getElementById("mobileSummary");
+const workerCameraPanel = document.getElementById("mobileWorkerCameraPanel");
+const workerCameraToggleButton = document.getElementById("mobileWorkerCameraToggleButton");
+const workerCameraCloseButton = document.getElementById("mobileWorkerCameraCloseButton");
 const workerVideo = document.getElementById("mobileWorkerVideo");
 const workerCanvas = document.getElementById("mobileWorkerCanvas");
 const workerForm = document.getElementById("mobileWorkerForm");
@@ -60,6 +63,7 @@ let capturedFacePreviewUrl = "";
 let latestTimeRows = [];
 let latestHolidayRows = [];
 let topbarCollapsed = sessionStorage.getItem(TOPBAR_COLLAPSED_KEY) !== "0";
+let workerCameraOpen = false;
 
 monthPicker.value = new Date().toISOString().slice(0, 7);
 timestampInput.value = nowLocalValue();
@@ -95,6 +99,13 @@ logoutButton.addEventListener("click", () => {
 
 topbarOpenButton.addEventListener("click", () => setTopbarCollapsed(false));
 topbarCloseButton.addEventListener("click", () => setTopbarCollapsed(true));
+workerCameraToggleButton.addEventListener("click", () => {
+  setWorkerCameraOpen(true);
+  ensureWorkerCamera().catch((error) => {
+    setMessage(workerMessage, error.message, true);
+  });
+});
+workerCameraCloseButton.addEventListener("click", () => setWorkerCameraOpen(false));
 
 for (const button of tabButtons) {
   button.addEventListener("click", () => {
@@ -241,9 +252,12 @@ monthPicker.addEventListener("change", refreshAll);
 
 async function unlockAdmin() {
   authShell.hidden = true;
+  authShell.style.display = "none";
   adminApp.hidden = false;
+  adminApp.style.display = "";
   adminApp.setAttribute("aria-hidden", "false");
   applyTopbarState();
+  setWorkerCameraOpen(false);
   await refreshAll();
   setActiveTab(activeTab);
   renderFacePreview();
@@ -260,8 +274,11 @@ function lockAdmin() {
     clearInterval(refreshTimer);
     refreshTimer = null;
   }
+  setWorkerCameraOpen(false);
   authShell.hidden = false;
+  authShell.style.display = "";
   adminApp.hidden = true;
+  adminApp.style.display = "none";
   adminApp.setAttribute("aria-hidden", "true");
 }
 
@@ -858,9 +875,11 @@ function setActiveTab(tabName) {
   }
 
   if (tabName === "workers") {
-    ensureWorkerCamera().catch((error) => {
-      setMessage(workerMessage, error.message, true);
-    });
+    if (workerCameraOpen) {
+      ensureWorkerCamera().catch((error) => {
+        setMessage(workerMessage, error.message, true);
+      });
+    }
   } else {
     stopVideoStream(workerVideo);
   }
@@ -877,6 +896,15 @@ function setTopbarCollapsed(nextValue) {
   topbarCollapsed = Boolean(nextValue);
   sessionStorage.setItem(TOPBAR_COLLAPSED_KEY, topbarCollapsed ? "1" : "0");
   applyTopbarState();
+}
+
+function setWorkerCameraOpen(nextValue) {
+  workerCameraOpen = Boolean(nextValue);
+  workerCameraPanel.hidden = !workerCameraOpen;
+  workerCameraToggleButton.hidden = workerCameraOpen;
+  if (!workerCameraOpen) {
+    stopVideoStream(workerVideo);
+  }
 }
 
 async function ensureWorkerCamera() {
