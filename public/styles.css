@@ -781,6 +781,66 @@ tbody tr:last-child td {
   gap: 12px;
 }
 
+.mobile-time-table {
+  display: grid;
+  gap: 8px;
+}
+
+.mobile-time-table-head,
+.mobile-time-worker-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) repeat(3, minmax(0, 0.9fr));
+  gap: 10px;
+  align-items: center;
+}
+
+.mobile-time-table-head {
+  padding: 0 6px;
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.mobile-time-worker-row {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.mobile-time-worker-summary {
+  padding: 14px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.mobile-time-worker-summary::-webkit-details-marker {
+  display: none;
+}
+
+.mobile-time-worker-summary span {
+  min-width: 0;
+}
+
+.mobile-time-worker-name {
+  display: grid;
+  gap: 4px;
+}
+
+.mobile-time-worker-name small {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.mobile-time-worker-panel {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 12px;
+  border-top: 1px solid rgba(47, 93, 80, 0.12);
+}
+
 .mobile-time-group-date {
   margin: 4px 0 0;
   color: var(--muted);
@@ -880,6 +940,12 @@ tbody tr:last-child td {
   .mobile-toolbar,
   .mobile-metric-grid {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .mobile-time-table-head,
+  .mobile-time-worker-summary {
+    grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
+    font-size: 0.82rem;
   }
 
   .mobile-summary {

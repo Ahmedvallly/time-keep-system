@@ -406,48 +406,68 @@ function renderTimes(rows) {
   }
 
   const workerGroups = groupRowsByEmployee(visibleRows);
-  timesNode.innerHTML = "";
-
-  for (const workerGroup of workerGroups) {
+  const summaries = workerGroups.map((workerGroup) => {
     const worker = employees.find((entry) => entry.code === workerGroup.employeeCode) || {
       code: workerGroup.employeeCode,
       name: workerGroup.employeeName,
       monthlyTargetHours: 0
     };
-    const workerSummary = buildWorkerTimeSummary(worker, workerGroup.rows, monthPicker.value, latestHolidayRows);
-    const article = document.createElement("article");
-    article.className = "mobile-data-card mobile-time-worker";
-    article.innerHTML = `
-      <div class="mobile-card-topline">
-        <div>
-          <strong>${escapeHtml(workerSummary.employeeName)}</strong>
-          <p class="mobile-time-group-date">${escapeHtml(workerSummary.employeeCode)} • ${escapeHtml(workerSummary.workedDaysLabel)}</p>
-        </div>
-        <span class="mobile-badge">${escapeHtml(formatSignedHours(workerSummary.monthBalanceHours))}</span>
+    return buildWorkerTimeSummary(worker, workerGroup.rows, monthPicker.value, latestHolidayRows);
+  });
+
+  timesNode.innerHTML = `
+    <div class="mobile-time-table">
+      <div class="mobile-time-table-head">
+        <span>Worker</span>
+        <span>Today</span>
+        <span>Week +/-</span>
+        <span>Month +/-</span>
       </div>
-      <div class="mobile-metric-grid mobile-time-summary mobile-time-summary-wide">
-        <div>
-          <label>Month target</label>
-          <strong>${escapeHtml(formatHours(workerSummary.monthTargetHours))}</strong>
+      <div class="mobile-time-table-body"></div>
+    </div>
+  `;
+
+  const bodyNode = timesNode.querySelector(".mobile-time-table-body");
+
+  for (const summary of summaries) {
+    const workerDetails = document.createElement("details");
+    workerDetails.className = "mobile-time-worker-row";
+    workerDetails.innerHTML = `
+      <summary class="mobile-time-worker-summary">
+        <span class="mobile-time-worker-name">
+          <strong>${escapeHtml(summary.employeeName)}</strong>
+          <small>${escapeHtml(summary.employeeCode)} - ${escapeHtml(summary.workedDaysLabel)}</small>
+        </span>
+        <span>${escapeHtml(formatHours(summary.todayWorkedHours))}</span>
+        <span class="${summary.currentWeekBalanceHours < 0 ? "negative" : "positive"}">${escapeHtml(formatSignedHours(summary.currentWeekBalanceHours))}</span>
+        <span class="${summary.monthBalanceHours < 0 ? "negative" : "positive"}">${escapeHtml(formatSignedHours(summary.monthBalanceHours))}</span>
+      </summary>
+      <div class="mobile-time-worker-panel">
+        <div class="mobile-metric-grid mobile-time-summary mobile-time-summary-wide">
+          <div>
+            <label>Month target</label>
+            <strong>${escapeHtml(formatHours(summary.monthTargetHours))}</strong>
+          </div>
+          <div>
+            <label>Month worked</label>
+            <strong>${escapeHtml(formatHours(summary.monthWorkedHours))}</strong>
+          </div>
+          <div>
+            <label>This week target</label>
+            <strong>${escapeHtml(formatHours(summary.currentWeekTargetHours))}</strong>
+          </div>
+          <div>
+            <label>This week worked</label>
+            <strong>${escapeHtml(formatHours(summary.currentWeekWorkedHours))}</strong>
+          </div>
         </div>
-        <div>
-          <label>Month worked</label>
-          <strong>${escapeHtml(formatHours(workerSummary.monthWorkedHours))}</strong>
-        </div>
-        <div class="${workerSummary.monthBalanceHours < 0 ? "negative" : "positive"}">
-          <label>Month over/under</label>
-          <strong>${escapeHtml(formatSignedHours(workerSummary.monthBalanceHours))}</strong>
-        </div>
-      </div>
-      <div class="mobile-list mobile-week-list"></div>
-      <details class="mobile-time-details">
-        <summary class="mobile-time-details-toggle">Open daily times</summary>
+        <div class="mobile-list mobile-week-list"></div>
         <div class="mobile-list mobile-time-groups"></div>
-      </details>
+      </div>
     `;
 
-    const weekListNode = article.querySelector(".mobile-week-list");
-    for (const week of workerSummary.weeks) {
+    const weekListNode = workerDetails.querySelector(".mobile-week-list");
+    for (const week of summary.weeks) {
       const weekCard = document.createElement("section");
       weekCard.className = "mobile-data-card mobile-week-card";
       weekCard.innerHTML = `
@@ -469,8 +489,8 @@ function renderTimes(rows) {
       weekListNode.appendChild(weekCard);
     }
 
-    const dayGroupsNode = article.querySelector(".mobile-time-groups");
-    for (const day of workerSummary.days) {
+    const dayGroupsNode = workerDetails.querySelector(".mobile-time-groups");
+    for (const day of summary.days) {
       const dayCard = document.createElement("section");
       dayCard.className = "mobile-data-card mobile-time-group";
       dayCard.innerHTML = `
@@ -514,7 +534,7 @@ function renderTimes(rows) {
       dayGroupsNode.appendChild(dayCard);
     }
 
-    timesNode.appendChild(article);
+    bodyNode.appendChild(workerDetails);
   }
 }
 
@@ -565,6 +585,11 @@ function buildWorkerTimeSummary(worker, rows, month, holidays) {
   const days = Array.from(rowsByDay.entries())
     .map(([date, dayRows]) => buildDaySummary(date, dayRows, dailyTargetHours, holidayDates))
     .sort((left, right) => right.date.localeCompare(left.date));
+  const currentWeek = monthWeeks.find((week) => {
+    const today = todayDateValue();
+    return today >= week.start && today <= week.end;
+  }) || monthWeeks[monthWeeks.length - 1] || { targetHours: 0, workedHours: 0, balanceHours: 0 };
+  const todaySummary = days.find((day) => day.date === todayDateValue()) || { workedHours: 0 };
 
   return {
     employeeCode: worker.code,
@@ -573,6 +598,10 @@ function buildWorkerTimeSummary(worker, rows, month, holidays) {
     monthTargetHours: Number(worker.monthlyTargetHours || 0),
     monthWorkedHours,
     monthBalanceHours,
+    todayWorkedHours: todaySummary.workedHours,
+    currentWeekTargetHours: currentWeek.targetHours,
+    currentWeekWorkedHours: currentWeek.workedHours,
+    currentWeekBalanceHours: currentWeek.balanceHours,
     weeks: monthWeeks,
     days
   };
