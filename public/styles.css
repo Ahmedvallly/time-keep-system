@@ -307,6 +307,69 @@ tbody tr:last-child td {
   width: min(100% - 12px, 760px);
 }
 
+.mobile-kiosk {
+  position: relative;
+  min-height: 100vh;
+  background: #0e140f;
+}
+
+.mobile-kiosk-login {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 30;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  text-decoration: none;
+  color: #fffaf1;
+  background: rgba(24, 35, 15, 0.52);
+  border: 1px solid rgba(255, 250, 241, 0.18);
+  backdrop-filter: blur(10px);
+  font-size: 0.84rem;
+}
+
+.mobile-kiosk-stage {
+  display: block;
+  width: 100%;
+  min-height: 100vh;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: #0e140f;
+}
+
+.mobile-kiosk-video {
+  min-height: 100vh;
+}
+
+.mobile-kiosk-overlay {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.16), rgba(0, 0, 0, 0.34));
+}
+
+.mobile-kiosk-copy {
+  position: absolute;
+  left: 18px;
+  right: 18px;
+  bottom: max(22px, env(safe-area-inset-bottom));
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(24, 35, 15, 0.42);
+  border: 1px solid rgba(255, 250, 241, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+.mobile-kiosk-copy .message,
+.mobile-kiosk-copy .mobile-empty {
+  color: #fffaf1;
+  margin: 0;
+}
+
 .mobile-shell {
   backdrop-filter: blur(10px);
 }

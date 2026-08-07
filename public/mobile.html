@@ -7,43 +7,18 @@
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body class="mobile-body">
-    <main class="mobile-layout mobile-scanner-layout">
-      <header class="mobile-topbar mobile-shell">
-        <div class="mobile-topbar-main">
-          <div>
-            <p class="eyebrow">Time Keep Scanner</p>
-            <h1>Face scan only</h1>
+    <main class="mobile-kiosk">
+      <a class="mobile-kiosk-login" href="/mobile-admin.html">Admin</a>
+      <button id="mobileScannerStartButton" class="mobile-kiosk-stage" type="button">
+        <video id="mobileFaceScanVideo" class="mobile-camera-video mobile-kiosk-video" autoplay muted playsinline></video>
+        <div class="mobile-camera-overlay mobile-kiosk-overlay">
+          <div class="mobile-camera-target"></div>
+          <div class="mobile-kiosk-copy">
+            <p id="mobileFaceStatus" class="message">Tap anywhere to start scanner</p>
+            <p id="mobileFaceHint" class="mobile-empty">Then look into the camera until your name is spoken.</p>
           </div>
         </div>
-        <p class="mobile-scanner-note">This page is for workers only. It stays on the front camera and alternates clock in and clock out.</p>
-      </header>
-
-      <section class="mobile-summary" id="mobileSummary"></section>
-
-      <section class="card mobile-card mobile-shell mobile-feature-card mobile-scanner-card">
-        <div class="card-head mobile-card-head">
-          <h2>Live face scanner</h2>
-          <p>One worker at a time. Look into the camera until the name is spoken.</p>
-        </div>
-        <div class="mobile-camera-shell mobile-camera-shell-tall">
-          <video id="mobileFaceScanVideo" class="mobile-camera-video" autoplay muted playsinline></video>
-          <div class="mobile-camera-overlay">
-            <div class="mobile-camera-target"></div>
-          </div>
-        </div>
-        <div class="mobile-scan-status">
-          <p id="mobileFaceStatus" class="message">Loading face scanner...</p>
-          <p id="mobileFaceHint" class="mobile-empty">Allow camera access, then center one face inside the frame.</p>
-        </div>
-      </section>
-
-      <section class="card mobile-card mobile-shell">
-        <div class="card-head mobile-card-head">
-          <h2>Today's activity</h2>
-          <p>Latest scans, newest first.</p>
-        </div>
-        <div id="mobileActivity" class="mobile-list"></div>
-      </section>
+      </button>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>

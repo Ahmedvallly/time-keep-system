@@ -3,11 +3,10 @@ const FACE_MATCH_THRESHOLD = 0.5;
 const FACE_SCAN_INTERVAL_MS = 1400;
 const FACE_SCAN_COOLDOWN_MS = 12000;
 
-const summaryNode = document.getElementById("mobileSummary");
+const startButton = document.getElementById("mobileScannerStartButton");
 const faceScanVideo = document.getElementById("mobileFaceScanVideo");
 const faceStatus = document.getElementById("mobileFaceStatus");
 const faceHint = document.getElementById("mobileFaceHint");
-const activityNode = document.getElementById("mobileActivity");
 
 let employees = [];
 let faceModelsReady = false;
@@ -17,6 +16,7 @@ let faceScanBusy = false;
 let lastMatchedEmployeeCode = "";
 let lastMatchedAt = 0;
 let refreshTimer = null;
+let scannerStarted = false;
 
 async function refreshAll() {
   await Promise.all([loadEmployees(), loadDashboard()]);
@@ -32,60 +32,16 @@ async function loadDashboard() {
   const response = await fetch(`/api/dashboard?month=${month}`);
   const data = await response.json();
   window.__latestTodayScans = data.todayScans;
-  renderSummary(data.workers, data.todayScans);
-  renderActivity(data.todayScans);
-}
-
-function renderSummary(workers, todayScans) {
-  const workingCount = workers.filter((worker) => worker.status === "Working").length;
-  const finishedCount = workers.filter((worker) => worker.status === "Finished").length;
-  const readyFaces = workers.filter((worker) => {
-    const employee = employees.find((entry) => entry.code === worker.code);
-    return employee && Array.isArray(employee.faceDescriptor) && employee.faceDescriptor.length === 128;
-  }).length;
-
-  summaryNode.innerHTML = [
-    summaryCard("Today scans", String(todayScans.length), "Live today"),
-    summaryCard("Working", String(workingCount), "Currently in"),
-    summaryCard("Finished", String(finishedCount), "Clocked out"),
-    summaryCard("Workers", String(workers.length), "Total staff"),
-    summaryCard("Faces ready", String(readyFaces), "Can scan"),
-    summaryCard("Scanner", faceModelsReady ? "Ready" : "Loading", "Front camera")
-  ].join("");
-}
-
-function summaryCard(label, value, helper) {
-  return `
-    <article class="mobile-stat">
-      <p>${escapeHtml(label)}</p>
-      <strong>${escapeHtml(value)}</strong>
-      <span>${escapeHtml(helper)}</span>
-    </article>
-  `;
-}
-
-function renderActivity(scans) {
-  if (scans.length === 0) {
-    activityNode.innerHTML = `<p class="mobile-empty">No scans yet today.</p>`;
-    return;
-  }
-
-  activityNode.innerHTML = scans
-    .map(
-      (scan) => `
-        <article class="mobile-row">
-          <div>
-            <strong>${escapeHtml(scan.employeeName)}</strong>
-            <p>${escapeHtml(formatEvent(scan.type))}</p>
-          </div>
-          <time>${escapeHtml(formatDateTime(scan.timestamp))}</time>
-        </article>
-      `
-    )
-    .join("");
 }
 
 async function startScanner() {
+  if (scannerStarted) {
+    return;
+  }
+
+  scannerStarted = true;
+  startButton.disabled = true;
+  faceHint.textContent = "Starting camera...";
   await startVideoStream(faceScanVideo);
   await ensureFaceModels();
   startFaceScanLoop();
@@ -326,10 +282,18 @@ function escapeHtml(value) {
 }
 
 refreshAll()
-  .then(startScanner)
   .catch((error) => {
     setMessage(faceStatus, error.message, true);
   });
+
+startButton.addEventListener("click", () => {
+  startScanner().catch((error) => {
+    scannerStarted = false;
+    startButton.disabled = false;
+    setMessage(faceStatus, error.message, true);
+    faceHint.textContent = "Tap again after allowing camera permission.";
+  });
+});
 
 refreshTimer = setInterval(() => {
   refreshAll().catch(() => {});
