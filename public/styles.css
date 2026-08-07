@@ -761,6 +761,51 @@ tbody tr:last-child td {
   align-items: center;
 }
 
+.mobile-time-group {
+  gap: 12px;
+}
+
+.mobile-time-group-date {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.mobile-time-summary strong {
+  font-size: 1rem;
+}
+
+.mobile-time-timeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mobile-time-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  background: rgba(47, 93, 80, 0.08);
+  border: 1px solid rgba(47, 93, 80, 0.12);
+  color: var(--accent-strong);
+  font-size: 0.86rem;
+}
+
+.mobile-time-pill strong {
+  font-size: 0.92rem;
+}
+
+.mobile-time-rows {
+  gap: 8px;
+}
+
+.mobile-time-row-card {
+  background: rgba(47, 93, 80, 0.03);
+  border: 1px solid rgba(47, 93, 80, 0.1);
+}
+
 @media (max-width: 520px) {
   .mobile-topbar {
     padding: 10px 10px 8px;

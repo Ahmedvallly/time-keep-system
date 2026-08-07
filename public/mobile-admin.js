@@ -374,63 +374,135 @@ function renderTimes(rows) {
     .map((type) => `<option value="${type}">${escapeHtml(formatEvent(type))}</option>`)
     .join("");
 
+  const groups = groupTimeRows(rows);
   timesNode.innerHTML = "";
 
-  for (const row of rows) {
+  for (const group of groups) {
     const article = document.createElement("article");
-    article.className = "mobile-data-card";
+    const summary = summarizeTimeGroup(group.rows);
+    article.className = "mobile-data-card mobile-time-group";
     article.innerHTML = `
       <div class="mobile-card-topline">
-        <strong>${escapeHtml(row.employeeName)}</strong>
-        <span class="mobile-badge">${escapeHtml(formatEvent(row.type))}</span>
+        <div>
+          <strong>${escapeHtml(group.employeeName)}</strong>
+          <p class="mobile-time-group-date">${escapeHtml(formatDateLabel(group.date))}</p>
+        </div>
+        <span class="mobile-badge">${group.rows.length} scan${group.rows.length === 1 ? "" : "s"}</span>
       </div>
-      <div class="mobile-edit-fields">
-        <select data-field="employeeCode">${employeeOptions}</select>
-        <input data-field="timestamp" type="datetime-local" value="${escapeAttribute(row.time)}">
-        <select data-field="type">${eventOptions}</select>
+      <div class="mobile-metric-grid mobile-time-summary">
+        <div>
+          <label>First in</label>
+          <strong>${escapeHtml(summary.firstIn)}</strong>
+        </div>
+        <div>
+          <label>Last out</label>
+          <strong>${escapeHtml(summary.lastOut)}</strong>
+        </div>
       </div>
-      <div class="mobile-edit-actions">
-        <button class="button small-button" type="button" data-action="save">Save</button>
-        <button class="button secondary small-button" type="button" data-action="delete">Delete</button>
-      </div>
+      <div class="mobile-time-timeline">${summary.timeline}</div>
+      <div class="mobile-list mobile-time-rows"></div>
     `;
 
-    article.querySelector('[data-field="employeeCode"]').value = row.employeeCode;
-    article.querySelector('[data-field="type"]').value = row.type;
+    const rowsNode = article.querySelector(".mobile-time-rows");
+    for (const row of group.rows) {
+      const rowCard = document.createElement("section");
+      rowCard.className = "mobile-edit-card mobile-time-row-card";
+      rowCard.innerHTML = `
+        <div class="mobile-card-topline">
+          <strong>${escapeHtml(formatEvent(row.type))}</strong>
+          <span class="mobile-badge">${escapeHtml(formatTimeOnly(row.timestamp))}</span>
+        </div>
+        <div class="mobile-edit-fields">
+          <select data-field="employeeCode">${employeeOptions}</select>
+          <input data-field="timestamp" type="datetime-local" value="${escapeAttribute(row.time)}">
+          <select data-field="type">${eventOptions}</select>
+        </div>
+        <div class="mobile-edit-actions">
+          <button class="button small-button" type="button" data-action="save">Save</button>
+          <button class="button secondary small-button" type="button" data-action="delete">Delete</button>
+        </div>
+      `;
 
-    article.querySelector('[data-action="save"]').addEventListener("click", async () => {
-      try {
-        await sendJson(`/api/scans/${row.id}`, {
-          method: "PUT",
-          body: {
-            employeeCode: article.querySelector('[data-field="employeeCode"]').value,
-            timestamp: article.querySelector('[data-field="timestamp"]').value,
-            type: article.querySelector('[data-field="type"]').value
-          }
-        });
-        setMessage(manualMessage, "Time row updated.");
-        await refreshAll();
-      } catch (error) {
-        setMessage(manualMessage, error.message, true);
-      }
-    });
+      rowCard.querySelector('[data-field="employeeCode"]').value = row.employeeCode;
+      rowCard.querySelector('[data-field="type"]').value = row.type;
 
-    article.querySelector('[data-action="delete"]').addEventListener("click", async () => {
-      try {
-        const response = await fetch(`/api/scans/${row.id}`, { method: "DELETE" });
-        if (!response.ok) {
-          const data = await response.json();
-          throw new Error(data.error || "Delete failed.");
+      rowCard.querySelector('[data-action="save"]').addEventListener("click", async () => {
+        try {
+          await sendJson(`/api/scans/${row.id}`, {
+            method: "PUT",
+            body: {
+              employeeCode: rowCard.querySelector('[data-field="employeeCode"]').value,
+              timestamp: rowCard.querySelector('[data-field="timestamp"]').value,
+              type: rowCard.querySelector('[data-field="type"]').value
+            }
+          });
+          setMessage(manualMessage, "Time row updated.");
+          await refreshAll();
+        } catch (error) {
+          setMessage(manualMessage, error.message, true);
         }
-        setMessage(manualMessage, "Time row deleted.");
-        await refreshAll();
-      } catch (error) {
-        setMessage(manualMessage, error.message, true);
-      }
-    });
+      });
+
+      rowCard.querySelector('[data-action="delete"]').addEventListener("click", async () => {
+        try {
+          const response = await fetch(`/api/scans/${row.id}`, { method: "DELETE" });
+          if (!response.ok) {
+            const data = await response.json();
+            throw new Error(data.error || "Delete failed.");
+          }
+          setMessage(manualMessage, "Time row deleted.");
+          await refreshAll();
+        } catch (error) {
+          setMessage(manualMessage, error.message, true);
+        }
+      });
+
+      rowsNode.appendChild(rowCard);
+    }
 
     timesNode.appendChild(article);
   }
+}
+
+function groupTimeRows(rows) {
+  const groups = new Map();
+
+  for (const row of rows) {
+    const key = `${row.employeeCode}__${row.date}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        employeeCode: row.employeeCode,
+        employeeName: row.employeeName,
+        date: row.date,
+        rows: []
+      });
+    }
+    groups.get(key).rows.push(row);
+  }
+
+  return Array.from(groups.values()).map((group) => ({
+    ...group,
+    rows: [...group.rows].sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp))
+  }));
+}
+
+function summarizeTimeGroup(rows) {
+  const firstIn = rows.find((row) => row.type === "clock_in");
+  const lastOut = [...rows].reverse().find((row) => row.type === "clock_out");
+  const timeline = rows
+    .map((row) => `
+      <span class="mobile-time-pill">
+        <strong>${escapeHtml(formatTimeOnly(row.timestamp))}</strong>
+        <span>${escapeHtml(shortEventLabel(row.type))}</span>
+      </span>
+    `)
+    .join("");
+
+  return {
+    firstIn: firstIn ? formatTimeOnly(firstIn.timestamp) : "No in",
+    lastOut: lastOut ? formatTimeOnly(lastOut.timestamp) : "No out",
+    timeline
+  };
 }
 
 function renderLeaveBalances(balances) {
@@ -757,6 +829,16 @@ function formatEvent(type) {
     .join(" ");
 }
 
+function shortEventLabel(type) {
+  if (type === "clock_in") {
+    return "In";
+  }
+  if (type === "clock_out") {
+    return "Out";
+  }
+  return formatEvent(type);
+}
+
 function formatLeaveType(type) {
   const value = String(type || "annual");
   return value.charAt(0).toUpperCase() + value.slice(1);
@@ -766,6 +848,21 @@ function formatDateTime(value) {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short"
+  }).format(new Date(value));
+}
+
+function formatDateLabel(value) {
+  return new Intl.DateTimeFormat(undefined, {
+    weekday: "short",
+    day: "numeric",
+    month: "short"
+  }).format(new Date(`${value}T00:00:00`));
+}
+
+function formatTimeOnly(value) {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: "numeric",
+    minute: "2-digit"
   }).format(new Date(value));
 }
 
