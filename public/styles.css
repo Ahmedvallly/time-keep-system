@@ -315,14 +315,14 @@ tbody tr:last-child td {
 
 .mobile-kiosk-login {
   position: fixed;
-  top: 12px;
-  right: 12px;
+  top: max(18px, calc(env(safe-area-inset-top) + 10px));
+  right: 14px;
   z-index: 30;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 36px;
-  padding: 8px 12px;
+  min-height: 42px;
+  padding: 10px 14px;
   border-radius: 999px;
   text-decoration: none;
   color: #fffaf1;
@@ -349,7 +349,7 @@ tbody tr:last-child td {
   width: 100vw;
   height: 100vh;
   min-height: 100vh;
-  object-fit: contain;
+  object-fit: cover;
   background: #0e140f;
 }
 
