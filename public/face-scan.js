@@ -140,7 +140,7 @@ async function scanCurrentFace() {
     lastMatchedAt = now;
     const greeting = greetingForEvent(data.scan.type, data.scan.employeeName);
     setMessage(faceStatus, greeting);
-    faceHint.textContent = `${formatEvent(data.scan.type)} at ${formatDateTime(data.scan.timestamp)}.`;
+    faceHint.textContent = `${greeting}. ${formatEvent(data.scan.type)} at ${formatDateTime(data.scan.timestamp)}.`;
     speakMessage(greeting);
     await refreshAll();
   } finally {
@@ -200,7 +200,7 @@ function faceScanRequestedType(employeeCode) {
 }
 
 function greetingForEvent(type, employeeName) {
-  return type === "clock_in" ? `Welcome ${employeeName}` : `Bye ${employeeName}`;
+  return type === "clock_in" ? `Welcome ${employeeName}` : `Goodbye ${employeeName}`;
 }
 
 function speakMessage(message) {

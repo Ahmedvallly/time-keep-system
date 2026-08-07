@@ -9,7 +9,10 @@ const adminApp = document.getElementById("mobileAdminApp");
 const loginForm = document.getElementById("mobileAdminLoginForm");
 const loginMessage = document.getElementById("mobileAdminLoginMessage");
 const logoutButton = document.getElementById("mobileAdminLogoutButton");
-const topbarToggleButton = document.getElementById("mobileTopbarToggleButton");
+const topbarOpenButton = document.getElementById("mobileTopbarOpenButton");
+const topbarCloseButton = document.getElementById("mobileTopbarCloseButton");
+const topbarCollapsedBar = document.getElementById("mobileTopbarCollapsedBar");
+const topbarMain = document.getElementById("mobileTopbarMain");
 const topbarBody = document.getElementById("mobileTopbarBody");
 const monthPicker = document.getElementById("mobileMonthPicker");
 const summaryNode = document.getElementById("mobileSummary");
@@ -55,7 +58,7 @@ let capturedFaceDescriptor = [];
 let capturedFacePreviewUrl = "";
 let latestTimeRows = [];
 let latestHolidayRows = [];
-let topbarCollapsed = sessionStorage.getItem(TOPBAR_COLLAPSED_KEY) === "1";
+let topbarCollapsed = sessionStorage.getItem(TOPBAR_COLLAPSED_KEY) !== "0";
 
 monthPicker.value = new Date().toISOString().slice(0, 7);
 timestampInput.value = nowLocalValue();
@@ -89,11 +92,8 @@ logoutButton.addEventListener("click", () => {
   lockAdmin();
 });
 
-topbarToggleButton.addEventListener("click", () => {
-  topbarCollapsed = !topbarCollapsed;
-  sessionStorage.setItem(TOPBAR_COLLAPSED_KEY, topbarCollapsed ? "1" : "0");
-  applyTopbarState();
-});
+topbarOpenButton.addEventListener("click", () => setTopbarCollapsed(false));
+topbarCloseButton.addEventListener("click", () => setTopbarCollapsed(true));
 
 for (const button of tabButtons) {
   button.addEventListener("click", () => {
@@ -847,9 +847,15 @@ function setActiveTab(tabName) {
 }
 
 function applyTopbarState() {
+  topbarCollapsedBar.hidden = !topbarCollapsed;
+  topbarMain.hidden = topbarCollapsed;
   topbarBody.hidden = topbarCollapsed;
-  topbarToggleButton.textContent = topbarCollapsed ? "Show menu" : "Hide menu";
-  topbarToggleButton.setAttribute("aria-expanded", String(!topbarCollapsed));
+}
+
+function setTopbarCollapsed(nextValue) {
+  topbarCollapsed = Boolean(nextValue);
+  sessionStorage.setItem(TOPBAR_COLLAPSED_KEY, topbarCollapsed ? "1" : "0");
+  applyTopbarState();
 }
 
 async function ensureWorkerCamera() {

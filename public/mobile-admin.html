@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Time Keep Admin</title>
-    <link rel="stylesheet" href="/styles.css?v=2026.08.07.5">
+    <link rel="stylesheet" href="/styles.css?v=2026.08.07.6">
   </head>
   <body class="mobile-body">
     <main class="mobile-layout">
@@ -25,13 +25,16 @@
 
       <section id="mobileAdminApp" hidden>
         <header class="mobile-topbar mobile-shell">
-          <div class="mobile-topbar-main">
+          <div class="mobile-topbar-collapsed" id="mobileTopbarCollapsedBar" hidden>
+            <button class="mobile-link mobile-link-button" id="mobileTopbarOpenButton" type="button">Open navigation</button>
+          </div>
+          <div class="mobile-topbar-main" id="mobileTopbarMain">
             <div>
               <p class="eyebrow">Time Keep Admin</p>
               <h1>Workers and time control</h1>
             </div>
             <div class="mobile-topbar-actions">
-              <button class="mobile-link mobile-link-button" id="mobileTopbarToggleButton" type="button">Hide menu</button>
+              <button class="mobile-link mobile-link-button" id="mobileTopbarCloseButton" type="button">Hide navigation</button>
               <button class="mobile-link mobile-link-button" id="mobileAdminLogoutButton" type="button">Log out</button>
             </div>
           </div>
@@ -170,6 +173,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <script src="/mobile-admin.js?v=2026.08.07.5"></script>
+    <script src="/mobile-admin.js?v=2026.08.07.6"></script>
   </body>
 </html>
