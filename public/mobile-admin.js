@@ -54,6 +54,7 @@ let faceModelsLoading = null;
 let capturedFaceDescriptor = [];
 let capturedFacePreviewUrl = "";
 let latestTimeRows = [];
+let latestHolidayRows = [];
 let topbarCollapsed = sessionStorage.getItem(TOPBAR_COLLAPSED_KEY) === "1";
 
 monthPicker.value = new Date().toISOString().slice(0, 7);
@@ -298,7 +299,11 @@ async function loadLeaves() {
 async function loadHolidays() {
   const response = await fetch(`/api/holidays?month=${monthPicker.value}`);
   const data = await response.json();
+  latestHolidayRows = data.rows;
   renderHolidays(data.rows);
+  if (latestTimeRows.length > 0) {
+    renderTimes(latestTimeRows);
+  }
 }
 
 function renderSummary(workers) {
@@ -400,109 +405,128 @@ function renderTimes(rows) {
     return;
   }
 
-  const groups = groupTimeRows(visibleRows);
+  const workerGroups = groupRowsByEmployee(visibleRows);
   timesNode.innerHTML = "";
 
-  for (const group of groups) {
+  for (const workerGroup of workerGroups) {
+    const worker = employees.find((entry) => entry.code === workerGroup.employeeCode) || {
+      code: workerGroup.employeeCode,
+      name: workerGroup.employeeName,
+      monthlyTargetHours: 0
+    };
+    const workerSummary = buildWorkerTimeSummary(worker, workerGroup.rows, monthPicker.value, latestHolidayRows);
     const article = document.createElement("article");
-    const summary = summarizeTimeGroup(group.rows);
-    article.className = "mobile-data-card mobile-time-group";
+    article.className = "mobile-data-card mobile-time-worker";
     article.innerHTML = `
       <div class="mobile-card-topline">
         <div>
-          <strong>${escapeHtml(group.employeeName)}</strong>
-          <p class="mobile-time-group-date">${escapeHtml(formatDateLabel(group.date))}</p>
+          <strong>${escapeHtml(workerSummary.employeeName)}</strong>
+          <p class="mobile-time-group-date">${escapeHtml(workerSummary.employeeCode)} • ${escapeHtml(workerSummary.workedDaysLabel)}</p>
         </div>
-        <span class="mobile-badge">${group.rows.length} scan${group.rows.length === 1 ? "" : "s"}</span>
+        <span class="mobile-badge">${escapeHtml(formatSignedHours(workerSummary.monthBalanceHours))}</span>
       </div>
-      <div class="mobile-metric-grid mobile-time-summary">
+      <div class="mobile-metric-grid mobile-time-summary mobile-time-summary-wide">
         <div>
-          <label>First in</label>
-          <strong>${escapeHtml(summary.firstIn)}</strong>
+          <label>Month target</label>
+          <strong>${escapeHtml(formatHours(workerSummary.monthTargetHours))}</strong>
         </div>
         <div>
-          <label>Last out</label>
-          <strong>${escapeHtml(summary.lastOut)}</strong>
+          <label>Month worked</label>
+          <strong>${escapeHtml(formatHours(workerSummary.monthWorkedHours))}</strong>
+        </div>
+        <div class="${workerSummary.monthBalanceHours < 0 ? "negative" : "positive"}">
+          <label>Month over/under</label>
+          <strong>${escapeHtml(formatSignedHours(workerSummary.monthBalanceHours))}</strong>
         </div>
       </div>
-      <div class="mobile-time-timeline">${summary.timeline}</div>
+      <div class="mobile-list mobile-week-list"></div>
       <details class="mobile-time-details">
-        <summary class="mobile-time-details-toggle">Open edit rows</summary>
-        <div class="mobile-list mobile-time-rows"></div>
+        <summary class="mobile-time-details-toggle">Open daily times</summary>
+        <div class="mobile-list mobile-time-groups"></div>
       </details>
     `;
 
-    const rowsNode = article.querySelector(".mobile-time-rows");
-    for (const row of group.rows) {
-      const rowCard = document.createElement("section");
-      rowCard.className = "mobile-edit-card mobile-time-row-card";
-      rowCard.innerHTML = `
+    const weekListNode = article.querySelector(".mobile-week-list");
+    for (const week of workerSummary.weeks) {
+      const weekCard = document.createElement("section");
+      weekCard.className = "mobile-data-card mobile-week-card";
+      weekCard.innerHTML = `
         <div class="mobile-card-topline">
-          <strong>${escapeHtml(formatEvent(row.type))}</strong>
-          <span class="mobile-badge">${escapeHtml(formatTimeOnly(row.timestamp))}</span>
+          <strong>${escapeHtml(week.label)}</strong>
+          <span class="mobile-badge ${week.balanceHours < 0 ? "negative" : "positive"}">${escapeHtml(formatSignedHours(week.balanceHours))}</span>
         </div>
-        <div class="mobile-edit-fields">
-          <select data-field="employeeCode">${employeeOptions}</select>
-          <input data-field="timestamp" type="datetime-local" value="${escapeAttribute(row.time)}">
-          <select data-field="type">${eventOptions}</select>
-        </div>
-        <div class="mobile-edit-actions">
-          <button class="button small-button" type="button" data-action="save">Save</button>
-          <button class="button secondary small-button" type="button" data-action="delete">Delete</button>
+        <div class="mobile-metric-grid mobile-time-summary">
+          <div>
+            <label>Target</label>
+            <strong>${escapeHtml(formatHours(week.targetHours))}</strong>
+          </div>
+          <div>
+            <label>Worked</label>
+            <strong>${escapeHtml(formatHours(week.workedHours))}</strong>
+          </div>
         </div>
       `;
+      weekListNode.appendChild(weekCard);
+    }
 
-      rowCard.querySelector('[data-field="employeeCode"]').value = row.employeeCode;
-      rowCard.querySelector('[data-field="type"]').value = row.type;
+    const dayGroupsNode = article.querySelector(".mobile-time-groups");
+    for (const day of workerSummary.days) {
+      const dayCard = document.createElement("section");
+      dayCard.className = "mobile-data-card mobile-time-group";
+      dayCard.innerHTML = `
+        <div class="mobile-card-topline">
+          <div>
+            <strong>${escapeHtml(formatDateLabel(day.date))}</strong>
+            <p class="mobile-time-group-date">${escapeHtml(day.scanCountLabel)}</p>
+          </div>
+          <span class="mobile-badge ${day.balanceHours < 0 ? "negative" : "positive"}">${escapeHtml(formatSignedHours(day.balanceHours))}</span>
+        </div>
+        <div class="mobile-metric-grid mobile-time-summary mobile-time-summary-wide">
+          <div>
+            <label>Day target</label>
+            <strong>${escapeHtml(formatHours(day.targetHours))}</strong>
+          </div>
+          <div>
+            <label>Day worked</label>
+            <strong>${escapeHtml(formatHours(day.workedHours))}</strong>
+          </div>
+          <div>
+            <label>First in</label>
+            <strong>${escapeHtml(day.firstIn)}</strong>
+          </div>
+          <div>
+            <label>Last out</label>
+            <strong>${escapeHtml(day.lastOut)}</strong>
+          </div>
+        </div>
+        <div class="mobile-time-timeline">${day.timeline}</div>
+        <details class="mobile-time-details">
+          <summary class="mobile-time-details-toggle">Open edit rows</summary>
+          <div class="mobile-list mobile-time-rows"></div>
+        </details>
+      `;
 
-      rowCard.querySelector('[data-action="save"]').addEventListener("click", async () => {
-        try {
-          await sendJson(`/api/scans/${row.id}`, {
-            method: "PUT",
-            body: {
-              employeeCode: rowCard.querySelector('[data-field="employeeCode"]').value,
-              timestamp: rowCard.querySelector('[data-field="timestamp"]').value,
-              type: rowCard.querySelector('[data-field="type"]').value
-            }
-          });
-          setMessage(manualMessage, "Time row updated.");
-          await refreshAll();
-        } catch (error) {
-          setMessage(manualMessage, error.message, true);
-        }
-      });
+      const rowsNode = dayCard.querySelector(".mobile-time-rows");
+      for (const row of day.rows) {
+        rowsNode.appendChild(createEditableTimeRow(row, employeeOptions, eventOptions));
+      }
 
-      rowCard.querySelector('[data-action="delete"]').addEventListener("click", async () => {
-        try {
-          const response = await fetch(`/api/scans/${row.id}`, { method: "DELETE" });
-          if (!response.ok) {
-            const data = await response.json();
-            throw new Error(data.error || "Delete failed.");
-          }
-          setMessage(manualMessage, "Time row deleted.");
-          await refreshAll();
-        } catch (error) {
-          setMessage(manualMessage, error.message, true);
-        }
-      });
-
-      rowsNode.appendChild(rowCard);
+      dayGroupsNode.appendChild(dayCard);
     }
 
     timesNode.appendChild(article);
   }
 }
 
-function groupTimeRows(rows) {
+function groupRowsByEmployee(rows) {
   const groups = new Map();
 
   for (const row of rows) {
-    const key = `${row.employeeCode}__${row.date}`;
+    const key = row.employeeCode;
     if (!groups.has(key)) {
       groups.set(key, {
         employeeCode: row.employeeCode,
         employeeName: row.employeeName,
-        date: row.date,
         rows: []
       });
     }
@@ -512,21 +536,55 @@ function groupTimeRows(rows) {
   return Array.from(groups.values())
     .map((group) => ({
       ...group,
-      rows: [...group.rows].sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp))
+      rows: [...group.rows].sort((left, right) => new Date(right.timestamp) - new Date(left.timestamp))
     }))
-    .sort((left, right) => {
-      const dateCompare = right.date.localeCompare(left.date);
-      if (dateCompare !== 0) {
-        return dateCompare;
-      }
-      return left.employeeName.localeCompare(right.employeeName);
-    });
+    .sort((left, right) => left.employeeName.localeCompare(right.employeeName));
 }
 
-function summarizeTimeGroup(rows) {
-  const firstIn = rows.find((row) => row.type === "clock_in");
-  const lastOut = [...rows].reverse().find((row) => row.type === "clock_out");
-  const timeline = rows
+function buildWorkerTimeSummary(worker, rows, month, holidays) {
+  const holidayDates = new Set((holidays || []).map((holiday) => holiday.date));
+  const totalWorkdaysInMonth = countWorkdaysInMonth(month, holidayDates);
+  const dailyTargetHours = totalWorkdaysInMonth > 0
+    ? roundToTwo(Number(worker.monthlyTargetHours || 0) / totalWorkdaysInMonth)
+    : 0;
+  const rowsByDay = groupRowsByDay(rows);
+  const monthWorkedHours = roundToTwo(sumHours(Array.from(rowsByDay.values()).map((dayRows) => summarizeRowsWorkedHours(dayRows))));
+  const monthBalanceHours = roundToTwo(monthWorkedHours - Number(worker.monthlyTargetHours || 0));
+  const monthWeeks = getMonthWeeks(month).map((week) => {
+    const weekRows = rows.filter((row) => row.date >= week.start && row.date <= week.end);
+    const workedHours = roundToTwo(sumHours(groupRowsByDay(weekRows).values(), (dayRows) => summarizeRowsWorkedHours(dayRows)));
+    const targetHours = roundToTwo(dailyTargetHours * countWorkdaysBetween(week.start, week.end, holidayDates));
+    return {
+      label: `${week.label} • ${formatShortDateRange(week.start, week.end)}`,
+      workedHours,
+      targetHours,
+      balanceHours: roundToTwo(workedHours - targetHours)
+    };
+  }).filter((week) => week.workedHours > 0 || week.targetHours > 0);
+
+  const days = Array.from(rowsByDay.entries())
+    .map(([date, dayRows]) => buildDaySummary(date, dayRows, dailyTargetHours, holidayDates))
+    .sort((left, right) => right.date.localeCompare(left.date));
+
+  return {
+    employeeCode: worker.code,
+    employeeName: worker.name,
+    workedDaysLabel: `${days.length} day${days.length === 1 ? "" : "s"} worked`,
+    monthTargetHours: Number(worker.monthlyTargetHours || 0),
+    monthWorkedHours,
+    monthBalanceHours,
+    weeks: monthWeeks,
+    days
+  };
+}
+
+function buildDaySummary(date, rows, dailyTargetHours, holidayDates) {
+  const orderedRows = [...rows].sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp));
+  const firstIn = orderedRows.find((row) => row.type === "clock_in");
+  const lastOut = [...orderedRows].reverse().find((row) => row.type === "clock_out");
+  const workedHours = summarizeRowsWorkedHours(orderedRows);
+  const targetHours = isWorkdayKey(date, holidayDates) ? dailyTargetHours : 0;
+  const timeline = orderedRows
     .map((row) => `
       <span class="mobile-time-pill">
         <strong>${escapeHtml(formatTimeOnly(row.timestamp))}</strong>
@@ -536,10 +594,72 @@ function summarizeTimeGroup(rows) {
     .join("");
 
   return {
+    date,
+    rows: orderedRows,
     firstIn: firstIn ? formatTimeOnly(firstIn.timestamp) : "No in",
     lastOut: lastOut ? formatTimeOnly(lastOut.timestamp) : "No out",
-    timeline
+    workedHours,
+    targetHours,
+    balanceHours: roundToTwo(workedHours - targetHours),
+    timeline,
+    scanCountLabel: `${orderedRows.length} scan${orderedRows.length === 1 ? "" : "s"}`
   };
+}
+
+function createEditableTimeRow(row, employeeOptions, eventOptions) {
+  const rowCard = document.createElement("section");
+  rowCard.className = "mobile-edit-card mobile-time-row-card";
+  rowCard.innerHTML = `
+    <div class="mobile-card-topline">
+      <strong>${escapeHtml(formatEvent(row.type))}</strong>
+      <span class="mobile-badge">${escapeHtml(formatTimeOnly(row.timestamp))}</span>
+    </div>
+    <div class="mobile-edit-fields">
+      <select data-field="employeeCode">${employeeOptions}</select>
+      <input data-field="timestamp" type="datetime-local" value="${escapeAttribute(row.time)}">
+      <select data-field="type">${eventOptions}</select>
+    </div>
+    <div class="mobile-edit-actions">
+      <button class="button small-button" type="button" data-action="save">Save</button>
+      <button class="button secondary small-button" type="button" data-action="delete">Delete</button>
+    </div>
+  `;
+
+  rowCard.querySelector('[data-field="employeeCode"]').value = row.employeeCode;
+  rowCard.querySelector('[data-field="type"]').value = row.type;
+
+  rowCard.querySelector('[data-action="save"]').addEventListener("click", async () => {
+    try {
+      await sendJson(`/api/scans/${row.id}`, {
+        method: "PUT",
+        body: {
+          employeeCode: rowCard.querySelector('[data-field="employeeCode"]').value,
+          timestamp: rowCard.querySelector('[data-field="timestamp"]').value,
+          type: rowCard.querySelector('[data-field="type"]').value
+        }
+      });
+      setMessage(manualMessage, "Time row updated.");
+      await refreshAll();
+    } catch (error) {
+      setMessage(manualMessage, error.message, true);
+    }
+  });
+
+  rowCard.querySelector('[data-action="delete"]').addEventListener("click", async () => {
+    try {
+      const response = await fetch(`/api/scans/${row.id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Delete failed.");
+      }
+      setMessage(manualMessage, "Time row deleted.");
+      await refreshAll();
+    } catch (error) {
+      setMessage(manualMessage, error.message, true);
+    }
+  });
+
+  return rowCard;
 }
 
 function renderLeaveBalances(balances) {
@@ -909,6 +1029,145 @@ function formatTimeOnly(value) {
   }).format(new Date(value));
 }
 
+function formatHours(value) {
+  return `${Number(value || 0).toFixed(2)}h`;
+}
+
+function formatSignedHours(value) {
+  const amount = Number(value || 0);
+  const sign = amount > 0 ? "+" : "";
+  return `${sign}${amount.toFixed(2)}h`;
+}
+
+function formatShortDateRange(start, end) {
+  return `${formatDateLabel(start)} to ${formatDateLabel(end)}`;
+}
+
+function groupRowsByDay(rows) {
+  const grouped = new Map();
+
+  for (const row of rows) {
+    if (!grouped.has(row.date)) {
+      grouped.set(row.date, []);
+    }
+    grouped.get(row.date).push(row);
+  }
+
+  return grouped;
+}
+
+function summarizeRowsWorkedHours(rows) {
+  const ordered = [...rows].sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp));
+  let shiftStart = null;
+  let workedMinutes = 0;
+
+  for (const row of ordered) {
+    const when = new Date(row.timestamp);
+    if (row.type === "clock_in") {
+      shiftStart = when;
+    } else if (row.type === "clock_out" && shiftStart) {
+      workedMinutes += diffMinutes(shiftStart, when);
+      shiftStart = null;
+    }
+  }
+
+  if (ordered.length > 0) {
+    const day = ordered[ordered.length - 1].date;
+    const isPastDay = day < todayDateValue();
+    const hasClockIn = ordered.some((row) => row.type === "clock_in");
+    const hasClockOut = ordered.some((row) => row.type === "clock_out");
+
+    if (isPastDay && hasClockIn && !hasClockOut) {
+      workedMinutes = 8 * 60;
+    }
+  }
+
+  return roundToTwo(workedMinutes / 60);
+}
+
+function getMonthWeeks(month) {
+  const weeks = [];
+  const start = new Date(`${month}-01T00:00:00`);
+  const end = endOfMonth(month);
+  let cursor = new Date(start);
+  let index = 1;
+
+  while (cursor <= end) {
+    const weekStart = new Date(cursor);
+    const weekEnd = new Date(cursor);
+    weekEnd.setDate(weekEnd.getDate() + (6 - weekEnd.getDay()));
+    if (weekEnd > end) {
+      weekEnd.setTime(end.getTime());
+    }
+
+    weeks.push({
+      label: `Week ${index}`,
+      start: dateKey(weekStart),
+      end: dateKey(weekEnd)
+    });
+
+    cursor = new Date(weekEnd);
+    cursor.setDate(cursor.getDate() + 1);
+    index += 1;
+  }
+
+  return weeks;
+}
+
+function endOfMonth(month) {
+  const [year, monthNumber] = month.split("-").map(Number);
+  return new Date(year, monthNumber, 0, 23, 59, 59, 999);
+}
+
+function countWorkdaysInMonth(month, holidayDates) {
+  return countWorkdaysBetween(`${month}-01`, dateKey(endOfMonth(month)), holidayDates);
+}
+
+function countWorkdaysBetween(startKey, endKey, holidayDates) {
+  const start = new Date(`${startKey}T00:00:00`);
+  const end = new Date(`${endKey}T00:00:00`);
+  let count = 0;
+
+  for (const cursor = new Date(start); cursor <= end; cursor.setDate(cursor.getDate() + 1)) {
+    if (isWorkday(cursor, holidayDates)) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
+function isWorkday(date, holidayDates) {
+  return date.getDay() !== 0 && !holidayDates.has(dateKey(date));
+}
+
+function isWorkdayKey(dayKey, holidayDates) {
+  return isWorkday(new Date(`${dayKey}T00:00:00`), holidayDates);
+}
+
+function dateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function diffMinutes(start, end) {
+  return Math.max(0, Math.round((end - start) / 60000));
+}
+
+function roundToTwo(value) {
+  return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+function sumHours(values, mapper) {
+  let total = 0;
+  for (const value of values) {
+    total += mapper ? mapper(value) : Number(value || 0);
+  }
+  return total;
+}
+
 function matchesTimeFilter(row) {
   const filter = normalizeSearch(timesFilterInput.value);
   if (!filter) {
@@ -934,7 +1193,8 @@ function nowLocalValue() {
 }
 
 function todayDateValue() {
-  return new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  return dateKey(now);
 }
 
 function resetLeaveForm() {
