@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Time Keep Admin</title>
-    <link rel="stylesheet" href="/styles.css?v=2026.08.07.13">
+    <link rel="stylesheet" href="/styles.css?v=2026.08.07.14">
   </head>
   <body class="mobile-body">
     <main class="mobile-layout">
@@ -40,7 +40,8 @@
               <input id="mobileMonthPicker" type="month">
             </div>
             <nav class="mobile-quicknav" aria-label="Admin sections">
-              <button type="button" class="mobile-tab is-active" data-tab="workers">Workers</button>
+              <button type="button" class="mobile-tab is-active" data-tab="home">Home</button>
+              <button type="button" class="mobile-tab" data-tab="workers">Workers</button>
               <button type="button" class="mobile-tab" data-tab="times">Times</button>
               <button type="button" class="mobile-tab" data-tab="leave">Leave</button>
               <button type="button" class="mobile-tab" data-tab="holidays">Holidays</button>
@@ -51,7 +52,34 @@
         <section class="mobile-summary" id="mobileSummary"></section>
 
         <section class="mobile-panel-stack">
-          <section class="mobile-panel is-active" data-tab-panel="workers">
+          <section class="mobile-panel" data-tab-panel="home">
+            <section class="card mobile-card mobile-shell mobile-feature-card">
+              <div class="card-head mobile-card-head">
+                <h2>Dashboard</h2>
+                <p>See who is in, today’s totals, weekly totals, monthly totals, and what needs attention first.</p>
+              </div>
+              <div id="mobileQuickActions" class="mobile-action-grid"></div>
+              <div id="mobileHomeTotals" class="mobile-summary mobile-summary-extended"></div>
+              <div class="mobile-home-grid">
+                <section class="mobile-home-section">
+                  <div class="mobile-section-head">
+                    <h3>Issues</h3>
+                    <span class="mobile-section-note">Problem rows only</span>
+                  </div>
+                  <div id="mobileIssueList" class="mobile-list"></div>
+                </section>
+                <section class="mobile-home-section">
+                  <div class="mobile-section-head">
+                    <h3>Today</h3>
+                    <span class="mobile-section-note">Current worker status</span>
+                  </div>
+                  <div id="mobileTodayWorkers" class="mobile-list"></div>
+                </section>
+              </div>
+            </section>
+          </section>
+
+          <section class="mobile-panel" data-tab-panel="workers">
             <section class="card mobile-card mobile-shell">
               <div class="card-head mobile-card-head">
                 <h2>Add worker with face</h2>
@@ -78,7 +106,10 @@
                   <option value="admin">Admin</option>
                 </select>
                 <input name="monthlyTargetHours" id="mobileWorkerTargetHours" type="number" min="0" step="0.25" value="182" required>
-                <textarea name="notes" id="mobileWorkerNotes" rows="3" placeholder="Notes"></textarea>
+                <details class="mobile-advanced-toggle">
+                  <summary>More options</summary>
+                  <textarea name="notes" id="mobileWorkerNotes" rows="3" placeholder="Notes"></textarea>
+                </details>
                 <div id="mobileFacePreview" class="mobile-face-preview mobile-empty">No face captured yet.</div>
                 <button class="button" type="submit">Save worker</button>
                 <p id="mobileWorkerMessage" class="message"></p>
@@ -89,7 +120,7 @@
             <section class="card mobile-card mobile-shell">
               <div class="card-head mobile-card-head">
                 <h2>Saved workers</h2>
-                <p>Face status shows who is ready for the scanner page.</p>
+                <p>Fast table view with status, target hours, face setup, and quick actions.</p>
               </div>
               <div id="mobileWorkers" class="mobile-list"></div>
             </section>
@@ -132,7 +163,25 @@
                   <a class="button secondary small-button" id="mobileMonthlyPdfLink" href="/api/report.pdf" target="_blank" rel="noopener">Print month PDF</a>
                 </div>
               </div>
-              <input id="mobileTimesFilter" type="search" placeholder="Search worker name or code">
+              <div class="mobile-filter-grid">
+                <input id="mobileTimesFilter" type="search" placeholder="Search worker name or code">
+                <select id="mobileTimesRoleFilter">
+                  <option value="">All roles</option>
+                  <option value="general">General</option>
+                  <option value="driver">Driver</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <select id="mobileTimesStatusFilter">
+                  <option value="">All statuses</option>
+                  <option value="working">Working</option>
+                  <option value="out">Out</option>
+                  <option value="no_scan">No scan</option>
+                </select>
+                <label class="mobile-checkline">
+                  <input id="mobileTimesIssuesOnly" type="checkbox">
+                  <span>Only problems</span>
+                </label>
+              </div>
               <div id="mobileTimes" class="mobile-list"></div>
               <p id="mobileTimeDeleteMessage" class="message"></p>
               <button class="button secondary small-button" id="mobileUndoTimeDeleteButton" type="button" hidden>Undo deleted time row</button>
@@ -189,10 +238,18 @@
             </section>
           </section>
         </section>
+
+        <nav class="mobile-bottom-nav" aria-label="Bottom navigation">
+          <button type="button" class="mobile-bottom-tab" data-tab="home">Home</button>
+          <button type="button" class="mobile-bottom-tab" data-tab="times">Times</button>
+          <button type="button" class="mobile-bottom-tab" data-tab="workers">Workers</button>
+          <button type="button" class="mobile-bottom-tab" data-tab="leave">Leave</button>
+          <button type="button" class="mobile-bottom-tab" data-tab="holidays">More</button>
+        </nav>
       </section>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <script src="/mobile-admin.js?v=2026.08.07.13"></script>
+    <script src="/mobile-admin.js?v=2026.08.07.14"></script>
   </body>
 </html>

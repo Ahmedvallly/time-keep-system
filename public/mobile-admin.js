@@ -17,6 +17,10 @@ const topbarMain = document.getElementById("mobileTopbarMain");
 const topbarBody = document.getElementById("mobileTopbarBody");
 const monthPicker = document.getElementById("mobileMonthPicker");
 const summaryNode = document.getElementById("mobileSummary");
+const quickActionsNode = document.getElementById("mobileQuickActions");
+const homeTotalsNode = document.getElementById("mobileHomeTotals");
+const issueListNode = document.getElementById("mobileIssueList");
+const todayWorkersNode = document.getElementById("mobileTodayWorkers");
 const workerCameraPanel = document.getElementById("mobileWorkerCameraPanel");
 const workerCameraToggleButton = document.getElementById("mobileWorkerCameraToggleButton");
 const workerCameraCloseButton = document.getElementById("mobileWorkerCameraCloseButton");
@@ -41,6 +45,9 @@ const monthlyCsvLink = document.getElementById("mobileMonthlyCsvLink");
 const monthlyPdfLink = document.getElementById("mobileMonthlyPdfLink");
 const timeDeleteMessage = document.getElementById("mobileTimeDeleteMessage");
 const undoTimeDeleteButton = document.getElementById("mobileUndoTimeDeleteButton");
+const timesRoleFilter = document.getElementById("mobileTimesRoleFilter");
+const timesStatusFilter = document.getElementById("mobileTimesStatusFilter");
+const timesIssuesOnly = document.getElementById("mobileTimesIssuesOnly");
 const leaveForm = document.getElementById("mobileLeaveForm");
 const leaveEmployeeCode = document.getElementById("mobileLeaveEmployeeCode");
 const leaveType = document.getElementById("mobileLeaveType");
@@ -57,20 +64,22 @@ const timesNode = document.getElementById("mobileTimes");
 const leaveBalancesNode = document.getElementById("mobileLeaveBalances");
 const leavesNode = document.getElementById("mobileLeaves");
 const holidaysNode = document.getElementById("mobileHolidays");
-const tabButtons = Array.from(document.querySelectorAll("[data-tab]"));
+const tabButtons = Array.from(document.querySelectorAll(".mobile-topbar [data-tab]"));
+const bottomTabButtons = Array.from(document.querySelectorAll(".mobile-bottom-tab"));
 const tabPanels = Array.from(document.querySelectorAll("[data-tab-panel]"));
 const TOPBAR_COLLAPSED_KEY = "time-keep-mobile-topbar-collapsed";
 
 let employees = [];
 let refreshTimer = null;
 let editingLeaveId = null;
-let activeTab = "workers";
+let activeTab = "home";
 let faceModelsReady = false;
 let faceModelsLoading = null;
 let capturedFaceDescriptor = [];
 let capturedFacePreviewUrl = "";
 let latestTimeRows = [];
 let latestHolidayRows = [];
+let latestDashboardWorkers = [];
 let topbarCollapsed = sessionStorage.getItem(TOPBAR_COLLAPSED_KEY) !== "0";
 let workerCameraOpen = false;
 let openTimeWorkerKeys = new Set();
@@ -126,11 +135,26 @@ workerCameraCloseButton.addEventListener("click", () => setWorkerCameraOpen(fals
 
 for (const button of tabButtons) {
   button.addEventListener("click", () => {
-    setActiveTab(button.dataset.tab || "workers");
+    setActiveTab(button.dataset.tab || "home");
+  });
+}
+
+for (const button of bottomTabButtons) {
+  button.addEventListener("click", () => {
+    setActiveTab(button.dataset.tab || "home");
   });
 }
 
 timesFilterInput.addEventListener("input", () => {
+  renderTimes(latestTimeRows);
+});
+timesRoleFilter.addEventListener("change", () => {
+  renderTimes(latestTimeRows);
+});
+timesStatusFilter.addEventListener("change", () => {
+  renderTimes(latestTimeRows);
+});
+timesIssuesOnly.addEventListener("change", () => {
   renderTimes(latestTimeRows);
 });
 
@@ -379,12 +403,15 @@ async function loadEmployees() {
   employees = await response.json();
   renderEmployeeOptions(employees);
   renderWorkers();
+  renderHomeDashboard();
 }
 
 async function loadDashboard() {
   const response = await fetch(`/api/dashboard?month=${monthPicker.value}`);
   const data = await response.json();
+  latestDashboardWorkers = data.workers;
   renderSummary(data.workers);
+  renderHomeDashboard();
 }
 
 async function loadTimes() {
@@ -393,6 +420,8 @@ async function loadTimes() {
   latestTimeRows = data.rows;
   updateMonthExportLinks();
   renderTimes(latestTimeRows);
+  renderWorkers();
+  renderHomeDashboard();
 }
 
 async function loadLeaves() {
@@ -410,6 +439,7 @@ async function loadHolidays() {
   if (latestTimeRows.length > 0) {
     renderTimes(latestTimeRows);
   }
+  renderHomeDashboard();
 }
 
 function renderSummary(workers) {
@@ -429,6 +459,95 @@ function renderSummary(workers) {
     summaryCard("Absences", String(absentCount), "This month"),
     summaryCard("Admin", "Unlocked", "Protected page")
   ].join("");
+}
+
+function renderHomeDashboard() {
+  const summaries = getAllTimeSummaries();
+  const totals = summarizeDashboardTotals(summaries);
+  const issues = summaries.filter((summary) => summary.issueCount > 0);
+  const todayRows = [...summaries].sort(compareSummaryPriority);
+
+  quickActionsNode.innerHTML = [
+    quickActionButton("Add worker", "workers"),
+    quickActionButton("Fix times", "times"),
+    quickActionButton("Leave", "leave"),
+    quickActionButton("Print month", "times")
+  ].join("");
+
+  for (const button of quickActionsNode.querySelectorAll("[data-tab-target]")) {
+    button.addEventListener("click", () => {
+      setActiveTab(button.dataset.tabTarget || "home");
+    });
+  }
+
+  homeTotalsNode.innerHTML = [
+    summaryCard("Worked today", formatHours(totals.todayWorkedHours), "All workers"),
+    summaryCard("Today +/-", formatSignedHours(totals.todayBalanceHours), totals.todayBalanceHours >= 0 ? "Over target" : "Under target"),
+    summaryCard("Worked week", formatHours(totals.weekWorkedHours), "This week"),
+    summaryCard("Week +/-", formatSignedHours(totals.weekBalanceHours), totals.weekBalanceHours >= 0 ? "Over target" : "Under target"),
+    summaryCard("Worked month", formatHours(totals.monthWorkedHours), "This month"),
+    summaryCard("Month +/-", formatSignedHours(totals.monthBalanceHours), totals.monthBalanceHours >= 0 ? "Over target" : "Under target")
+  ].join("");
+
+  if (issues.length === 0) {
+    issueListNode.innerHTML = `<p class="mobile-empty">No urgent issues right now.</p>`;
+  } else {
+    issueListNode.innerHTML = issues
+      .sort(compareSummaryPriority)
+      .map((summary) => `
+        <article class="mobile-data-card mobile-issue-card ${summary.issueSeverityClass}">
+          <div class="mobile-card-topline">
+            <strong>${escapeHtml(summary.employeeName)}</strong>
+            <span class="mobile-badge">${escapeHtml(summary.issueLabel)}</span>
+          </div>
+          <div class="mobile-detail-list">
+            <p><span>Status</span>${escapeHtml(summary.todayStatus)}</p>
+            <p><span>Role</span>${escapeHtml(formatWorkerRole(summary.role))}</p>
+            <p><span>Today</span>${escapeHtml(formatSignedHours(summary.todayBalanceHours))}</p>
+            <p><span>Week</span>${escapeHtml(formatSignedHours(summary.currentWeekBalanceHours))}</p>
+          </div>
+        </article>
+      `)
+      .join("");
+  }
+
+  if (todayRows.length === 0) {
+    todayWorkersNode.innerHTML = `<p class="mobile-empty">No workers loaded yet.</p>`;
+    return;
+  }
+
+  todayWorkersNode.innerHTML = todayRows
+    .map((summary) => `
+      <article class="mobile-data-card mobile-worker-status-card ${summary.statusClass}">
+        <div class="mobile-card-topline">
+          <strong>${escapeHtml(summary.employeeName)}</strong>
+          <span class="mobile-badge">${escapeHtml(summary.todayStatus)}</span>
+        </div>
+        <div class="mobile-metric-grid">
+          <div>
+            <label>Role</label>
+            <strong>${escapeHtml(formatWorkerRole(summary.role))}</strong>
+          </div>
+          <div>
+            <label>Today</label>
+            <strong>${escapeHtml(formatHours(summary.todayWorkedHours))}</strong>
+          </div>
+          <div>
+            <label>Week +/-</label>
+            <strong class="${summary.currentWeekBalanceHours < 0 ? "negative" : "positive"}">${escapeHtml(formatSignedHours(summary.currentWeekBalanceHours))}</strong>
+          </div>
+          <div>
+            <label>Month +/-</label>
+            <strong class="${summary.monthBalanceHours < 0 ? "negative" : "positive"}">${escapeHtml(formatSignedHours(summary.monthBalanceHours))}</strong>
+          </div>
+        </div>
+      </article>
+    `)
+    .join("");
+}
+
+function quickActionButton(label, tabName) {
+  return `<button class="button secondary small-button" type="button" data-tab-target="${escapeAttribute(tabName)}">${escapeHtml(label)}</button>`;
 }
 
 function summaryCard(label, value, helper) {
@@ -469,26 +588,40 @@ function renderWorkers() {
     return;
   }
 
-  workersNode.innerHTML = "";
+  const summaries = getAllTimeSummaries();
+  const summaryByCode = new Map(summaries.map((summary) => [summary.employeeCode, summary]));
+  workersNode.innerHTML = `
+    <div class="mobile-worker-table">
+      <div class="mobile-worker-table-head">
+        <span>Name</span>
+        <span>Role</span>
+        <span>Status</span>
+        <span>Month target</span>
+        <span>Face</span>
+        <span>Actions</span>
+      </div>
+      <div class="mobile-worker-table-body"></div>
+    </div>
+  `;
+  const bodyNode = workersNode.querySelector(".mobile-worker-table-body");
 
   for (const employee of employees) {
+    const summary = summaryByCode.get(employee.code) || null;
     const hasFace = Array.isArray(employee.faceDescriptor) && employee.faceDescriptor.length === 128;
     const article = document.createElement("article");
-    article.className = "mobile-data-card";
+    article.className = `mobile-worker-row ${summary ? summary.statusClass : ""}`;
     article.innerHTML = `
-      <div class="mobile-card-topline">
+      <span class="mobile-worker-primary">
         <strong>${escapeHtml(employee.name)}</strong>
-        <span class="mobile-badge">${hasFace ? "Face ready" : "No face"}</span>
-      </div>
-      <div class="mobile-detail-list">
-        <p><span>Code</span>${escapeHtml(employee.code)}</p>
-        <p><span>Role</span>${escapeHtml(formatWorkerRole(employee.role))}</p>
-        <p><span>Target hours</span>${Number(employee.monthlyTargetHours || 0).toFixed(2)}</p>
-        <p><span>Notes</span>${escapeHtml(employee.notes || "No notes")}</p>
-      </div>
-      <div class="mobile-edit-actions">
+        <small>${escapeHtml(employee.code)}</small>
+      </span>
+      <span>${escapeHtml(formatWorkerRole(employee.role))}</span>
+      <span class="mobile-badge">${escapeHtml(summary ? summary.todayStatus : "No scan")}</span>
+      <span>${escapeHtml(formatHours(employee.monthlyTargetHours || 0))}</span>
+      <span>${escapeHtml(hasFace ? "Ready" : "Missing")}</span>
+      <span class="mobile-edit-actions">
         <button class="button secondary small-button" type="button" data-action="delete">Delete worker</button>
-      </div>
+      </span>
     `;
 
     article.querySelector('[data-action="delete"]').addEventListener("click", async () => {
@@ -507,7 +640,7 @@ function renderWorkers() {
       }
     });
 
-    workersNode.appendChild(article);
+    bodyNode.appendChild(article);
   }
 }
 
@@ -537,7 +670,7 @@ function renderTimes(rows) {
   }
 
   const workerGroups = groupRowsByEmployee(visibleRows);
-  const summaries = workerGroups.map((workerGroup) => {
+  let summaries = workerGroups.map((workerGroup) => {
     const worker = employees.find((entry) => entry.code === workerGroup.employeeCode) || {
       code: workerGroup.employeeCode,
       name: workerGroup.employeeName,
@@ -545,6 +678,15 @@ function renderTimes(rows) {
     };
     return buildWorkerTimeSummary(worker, workerGroup.rows, monthPicker.value, latestHolidayRows);
   });
+
+  summaries = summaries
+    .filter(matchesSummaryFilter)
+    .sort(compareSummaryPriority);
+
+  if (summaries.length === 0) {
+    timesNode.innerHTML = `<p class="mobile-empty">No workers match those filters.</p>`;
+    return;
+  }
 
   timesNode.innerHTML = `
     <div class="mobile-time-table">
@@ -560,13 +702,13 @@ function renderTimes(rows) {
 
   for (const summary of summaries) {
     const workerDetails = document.createElement("details");
-    workerDetails.className = "mobile-time-worker-row";
+    workerDetails.className = `mobile-time-worker-row ${summary.statusClass} ${summary.issueSeverityClass}`;
     workerDetails.dataset.workerKey = summary.employeeCode;
     workerDetails.innerHTML = `
       <summary class="mobile-time-worker-summary">
         <span class="mobile-time-worker-name">
           <strong>${escapeHtml(summary.employeeName)}</strong>
-          <small>${escapeHtml(summary.employeeCode)} - ${escapeHtml(summary.workedDaysLabel)}</small>
+          <small>${escapeHtml(summary.employeeCode)} - ${escapeHtml(summary.workedDaysLabel)} - ${escapeHtml(formatWorkerRole(summary.role))}</small>
         </span>
         ${renderTimeSummaryColumns(summary)}
       </summary>
@@ -599,6 +741,10 @@ function renderTimes(rows) {
           <div>
             <label>This week worked</label>
             <strong>${escapeHtml(formatHours(summary.currentWeekWorkedHours))}</strong>
+          </div>
+          <div>
+            <label>Issues</label>
+            <strong>${escapeHtml(summary.issueLabel)}</strong>
           </div>
         </div>
         <div class="mobile-list mobile-week-list"></div>
@@ -759,12 +905,19 @@ function buildWorkerTimeSummary(worker, rows, month, holidays) {
   const todaySummary = days.find((day) => day.date === todayDateValue()) || {
     workedHours: 0,
     targetHours: dailyTargetHours,
-    rows: []
+    rows: [],
+    balanceHours: roundToTwo(0 - dailyTargetHours)
   };
+  const todayStatus = deriveTodayStatus(todaySummary.rows || []);
+  const issues = detectSummaryIssues(worker, todaySummary, currentWeek, {
+    monthWorkedHours,
+    monthBalanceHours
+  });
 
   return {
     employeeCode: worker.code,
     employeeName: worker.name,
+    role: worker.role || "general",
     workedDaysLabel: `${days.length} day${days.length === 1 ? "" : "s"} worked`,
     monthTargetHours: Number(worker.monthlyTargetHours || 0),
     monthWorkedHours,
@@ -772,10 +925,14 @@ function buildWorkerTimeSummary(worker, rows, month, holidays) {
     todayWorkedHours: todaySummary.workedHours,
     todayTargetHours: Number(todaySummary.targetHours || 0),
     todayBalanceHours: roundToTwo(Number(todaySummary.workedHours || 0) - Number(todaySummary.targetHours || 0)),
-    todayStatus: deriveTodayStatus(todaySummary.rows || []),
+    todayStatus,
     currentWeekTargetHours: currentWeek.targetHours,
     currentWeekWorkedHours: currentWeek.workedHours,
     currentWeekBalanceHours: currentWeek.balanceHours,
+    issueCount: issues.length,
+    issueLabel: issues[0] || "OK",
+    issueSeverityClass: issues.length > 0 ? "has-issues" : "is-clean",
+    statusClass: statusClassFor(todayStatus),
     weeks: monthWeeks,
     days
   };
@@ -1002,6 +1159,12 @@ function setActiveTab(tabName) {
   activeTab = tabName;
 
   for (const button of tabButtons) {
+    const isActive = button.dataset.tab === tabName;
+    button.classList.toggle("is-active", isActive);
+    button.setAttribute("aria-selected", String(isActive));
+  }
+
+  for (const button of bottomTabButtons) {
     const isActive = button.dataset.tab === tabName;
     button.classList.toggle("is-active", isActive);
     button.setAttribute("aria-selected", String(isActive));
@@ -1402,6 +1565,53 @@ function deriveTodayStatus(rows) {
   return lastRow.type === "clock_in" ? "Working" : "Out";
 }
 
+function detectSummaryIssues(worker, todaySummary, currentWeek, monthSummary) {
+  const issues = [];
+  const rows = Array.isArray(todaySummary.rows) ? todaySummary.rows : [];
+  const hasFace = Array.isArray(worker.faceDescriptor) && worker.faceDescriptor.length === 128;
+  const orderedRows = [...rows].sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp));
+  const hasClockIn = orderedRows.some((row) => row.type === "clock_in");
+  const hasClockOut = orderedRows.some((row) => row.type === "clock_out");
+
+  if (!hasFace) {
+    issues.push("Face missing");
+  }
+
+  if (orderedRows.length > 0 && hasClockIn && !hasClockOut) {
+    issues.push("Missing clock out");
+  }
+
+  if (todaySummary.balanceHours < 0) {
+    issues.push("Under today");
+  } else if (todaySummary.balanceHours > 0) {
+    issues.push("Over today");
+  }
+
+  if (currentWeek.balanceHours < 0) {
+    issues.push("Under week");
+  } else if (currentWeek.balanceHours > 0) {
+    issues.push("Over week");
+  }
+
+  if (monthSummary.monthBalanceHours < 0) {
+    issues.push("Under month");
+  } else if (monthSummary.monthBalanceHours > 0) {
+    issues.push("Over month");
+  }
+
+  return issues;
+}
+
+function statusClassFor(status) {
+  if (status === "Working") {
+    return "is-working";
+  }
+  if (status === "Out") {
+    return "is-out";
+  }
+  return "is-idle";
+}
+
 function getMonthWeeks(month) {
   const weeks = [];
   const start = new Date(`${month}-01T00:00:00`);
@@ -1485,6 +1695,45 @@ function sumHours(values, mapper) {
   return total;
 }
 
+function getAllTimeSummaries() {
+  if (employees.length === 0) {
+    return [];
+  }
+
+  const employeeRows = new Map();
+  for (const employee of employees) {
+    employeeRows.set(employee.code, []);
+  }
+
+  for (const row of latestTimeRows) {
+    if (!employeeRows.has(row.employeeCode)) {
+      employeeRows.set(row.employeeCode, []);
+    }
+    employeeRows.get(row.employeeCode).push(row);
+  }
+
+  return Array.from(employeeRows.entries()).map(([employeeCode, rows]) => {
+    const worker = employees.find((entry) => entry.code === employeeCode) || {
+      code: employeeCode,
+      name: rows[0]?.employeeName || employeeCode,
+      role: "general",
+      monthlyTargetHours: 0
+    };
+    return buildWorkerTimeSummary(worker, rows, monthPicker.value, latestHolidayRows);
+  });
+}
+
+function summarizeDashboardTotals(summaries) {
+  return {
+    todayWorkedHours: roundToTwo(sumHours(summaries, (summary) => summary.todayWorkedHours)),
+    todayBalanceHours: roundToTwo(sumHours(summaries, (summary) => summary.todayBalanceHours)),
+    weekWorkedHours: roundToTwo(sumHours(summaries, (summary) => summary.currentWeekWorkedHours)),
+    weekBalanceHours: roundToTwo(sumHours(summaries, (summary) => summary.currentWeekBalanceHours)),
+    monthWorkedHours: roundToTwo(sumHours(summaries, (summary) => summary.monthWorkedHours)),
+    monthBalanceHours: roundToTwo(sumHours(summaries, (summary) => summary.monthBalanceHours))
+  };
+}
+
 function matchesTimeFilter(row) {
   const filter = normalizeSearch(timesFilterInput.value);
   if (!filter) {
@@ -1493,6 +1742,65 @@ function matchesTimeFilter(row) {
 
   const haystack = normalizeSearch(`${row.employeeCode} ${row.employeeName}`);
   return haystack.includes(filter);
+}
+
+function matchesSummaryFilter(summary) {
+  const textFilter = normalizeSearch(timesFilterInput.value);
+  const roleFilter = String(timesRoleFilter.value || "").trim().toLowerCase();
+  const statusFilter = String(timesStatusFilter.value || "").trim().toLowerCase();
+  const issuesOnly = timesIssuesOnly.checked;
+
+  if (textFilter) {
+    const haystack = normalizeSearch(`${summary.employeeCode} ${summary.employeeName} ${summary.role}`);
+    if (!haystack.includes(textFilter)) {
+      return false;
+    }
+  }
+
+  if (roleFilter && String(summary.role || "").toLowerCase() !== roleFilter) {
+    return false;
+  }
+
+  if (statusFilter) {
+    const normalizedStatus = normalizeStatusFilterValue(summary.todayStatus);
+    if (normalizedStatus !== statusFilter) {
+      return false;
+    }
+  }
+
+  if (issuesOnly && summary.issueCount === 0) {
+    return false;
+  }
+
+  return true;
+}
+
+function normalizeStatusFilterValue(status) {
+  const normalized = normalizeSearch(status);
+  if (normalized === "working") {
+    return "working";
+  }
+  if (normalized === "out") {
+    return "out";
+  }
+  return "no_scan";
+}
+
+function compareSummaryPriority(left, right) {
+  return right.issueCount - left.issueCount
+    || statusRank(right.todayStatus) - statusRank(left.todayStatus)
+    || right.todayWorkedHours - left.todayWorkedHours
+    || left.employeeName.localeCompare(right.employeeName);
+}
+
+function statusRank(status) {
+  if (status === "Working") {
+    return 3;
+  }
+  if (status === "Out") {
+    return 2;
+  }
+  return 1;
 }
 
 function normalizeSearch(value) {

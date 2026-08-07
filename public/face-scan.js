@@ -7,6 +7,9 @@ const startButton = document.getElementById("mobileScannerStartButton");
 const faceScanVideo = document.getElementById("mobileFaceScanVideo");
 const faceStatus = document.getElementById("mobileFaceStatus");
 const faceHint = document.getElementById("mobileFaceHint");
+const scanBanner = document.getElementById("mobileScanBanner");
+const scanBannerTitle = document.getElementById("mobileScanBannerTitle");
+const scanBannerMeta = document.getElementById("mobileScanBannerMeta");
 
 let employees = [];
 let faceModelsReady = false;
@@ -18,6 +21,7 @@ let lastMatchedAt = 0;
 let refreshTimer = null;
 let scannerStarted = false;
 let speechPrimed = false;
+let bannerTimer = null;
 
 async function refreshAll() {
   await Promise.all([loadEmployees(), loadDashboard()]);
@@ -143,6 +147,7 @@ async function scanCurrentFace() {
     const greeting = greetingForEvent(data.scan.type, data.scan.employeeName);
     setMessage(faceStatus, greeting);
     faceHint.textContent = `${greeting}. ${formatEvent(data.scan.type)} at ${formatDateTime(data.scan.timestamp)}.`;
+    showScanBanner(greeting, `${formatEvent(data.scan.type)} at ${formatDateTime(data.scan.timestamp)}`);
     speakMessage(greeting);
     await refreshAll();
   } finally {
@@ -247,6 +252,18 @@ function primeSpeechSynthesis() {
   warmup.volume = 0;
   synth.speak(warmup);
   synth.cancel();
+}
+
+function showScanBanner(title, meta) {
+  scanBannerTitle.textContent = title;
+  scanBannerMeta.textContent = meta;
+  scanBanner.hidden = false;
+  if (bannerTimer) {
+    clearTimeout(bannerTimer);
+  }
+  bannerTimer = setTimeout(() => {
+    scanBanner.hidden = true;
+  }, 2800);
 }
 
 function hasRegisteredFace(employee) {
