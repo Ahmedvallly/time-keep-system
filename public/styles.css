@@ -300,7 +300,7 @@ tbody tr:last-child td {
 .mobile-layout {
   width: min(100% - 16px, 720px);
   margin: 0 auto;
-  padding: 8px 0 92px;
+  padding: 72px 0 92px;
 }
 
 .mobile-scanner-layout {
@@ -411,14 +411,17 @@ tbody tr:last-child td {
 }
 
 .mobile-topbar {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(calc(100% - 16px), 720px);
   z-index: 20;
-  margin-bottom: 12px;
-  padding: 10px 10px 12px;
+  margin-bottom: 0;
+  padding: 6px 8px 8px;
   border: 1px solid rgba(216, 204, 183, 0.9);
-  border-radius: 18px;
-  background: rgba(255, 250, 241, 0.92);
+  border-radius: 0 0 16px 16px;
+  background: rgba(255, 250, 241, 0.97);
   box-shadow: var(--shadow);
 }
 
@@ -432,7 +435,7 @@ tbody tr:last-child td {
   border: 0;
   background: transparent;
   box-shadow: none;
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 
 .mobile-topbar.is-collapsed .mobile-topbar-collapsed {
@@ -444,12 +447,12 @@ tbody tr:last-child td {
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .mobile-topbar-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: wrap;
   justify-content: end;
 }
@@ -470,11 +473,11 @@ tbody tr:last-child td {
   color: var(--accent-strong);
   text-decoration: none;
   white-space: nowrap;
-  padding: 8px 10px;
+  padding: 6px 9px;
   border-radius: 999px;
   background: rgba(47, 93, 80, 0.08);
   border: 1px solid rgba(47, 93, 80, 0.12);
-  font-size: 0.84rem;
+  font-size: 0.78rem;
 }
 
 .mobile-link-button {
@@ -485,15 +488,19 @@ tbody tr:last-child td {
 .mobile-toolbar {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  margin-bottom: 6px;
+  margin-bottom: 0;
 }
 
 .mobile-toolbar input {
   min-width: 0;
-  min-height: 40px;
-  padding: 8px 12px;
+  min-height: 34px;
+  padding: 6px 10px;
+}
+
+.mobile-toolbar .month-label {
+  font-size: 0.8rem;
 }
 
 .mobile-quicknav {
@@ -1171,7 +1178,8 @@ tbody tr:last-child td {
 
 @media (max-width: 520px) {
   .mobile-topbar {
-    padding: 10px 10px 8px;
+    width: calc(100% - 12px);
+    padding: 5px 6px 6px;
   }
 
   .mobile-topbar-main {
