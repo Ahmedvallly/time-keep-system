@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Time Keep Admin</title>
-    <link rel="stylesheet" href="/styles.css?v=2026.08.07.2">
+    <link rel="stylesheet" href="/styles.css?v=2026.08.07.3">
   </head>
   <body class="mobile-body">
     <main class="mobile-layout">
@@ -30,18 +30,23 @@
               <p class="eyebrow">Time Keep Admin</p>
               <h1>Workers and time control</h1>
             </div>
-            <button class="mobile-link mobile-link-button" id="mobileAdminLogoutButton" type="button">Log out</button>
+            <div class="mobile-topbar-actions">
+              <button class="mobile-link mobile-link-button" id="mobileTopbarToggleButton" type="button">Hide menu</button>
+              <button class="mobile-link mobile-link-button" id="mobileAdminLogoutButton" type="button">Log out</button>
+            </div>
           </div>
-          <div class="mobile-toolbar">
-            <label class="month-label" for="mobileMonthPicker">Month</label>
-            <input id="mobileMonthPicker" type="month">
+          <div class="mobile-topbar-body" id="mobileTopbarBody">
+            <div class="mobile-toolbar">
+              <label class="month-label" for="mobileMonthPicker">Month</label>
+              <input id="mobileMonthPicker" type="month">
+            </div>
+            <nav class="mobile-quicknav" aria-label="Admin sections">
+              <button type="button" class="mobile-tab is-active" data-tab="workers">Workers</button>
+              <button type="button" class="mobile-tab" data-tab="times">Times</button>
+              <button type="button" class="mobile-tab" data-tab="leave">Leave</button>
+              <button type="button" class="mobile-tab" data-tab="holidays">Holidays</button>
+            </nav>
           </div>
-          <nav class="mobile-quicknav" aria-label="Admin sections">
-            <button type="button" class="mobile-tab is-active" data-tab="workers">Workers</button>
-            <button type="button" class="mobile-tab" data-tab="times">Times</button>
-            <button type="button" class="mobile-tab" data-tab="leave">Leave</button>
-            <button type="button" class="mobile-tab" data-tab="holidays">Holidays</button>
-          </nav>
         </header>
 
         <section class="mobile-summary" id="mobileSummary"></section>
@@ -104,8 +109,9 @@
             <section class="card mobile-card mobile-shell">
               <div class="card-head mobile-card-head">
                 <h2>Edit time rows</h2>
-                <p>Update or delete saved time rows.</p>
+                <p>Filter by worker, then open only the day you want to fix.</p>
               </div>
+              <input id="mobileTimesFilter" type="search" placeholder="Search worker name or code">
               <div id="mobileTimes" class="mobile-list"></div>
             </section>
           </section>
@@ -164,6 +170,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <script src="/mobile-admin.js?v=2026.08.07.2"></script>
+    <script src="/mobile-admin.js?v=2026.08.07.3"></script>
   </body>
 </html>

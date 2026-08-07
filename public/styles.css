@@ -401,11 +401,23 @@ tbody tr:last-child td {
   margin-bottom: 10px;
 }
 
+.mobile-topbar-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: end;
+}
+
 .mobile-topbar h1 {
   max-width: none;
   margin: 0;
   font-size: clamp(1.15rem, 5vw, 1.45rem);
   line-height: 1.1;
+}
+
+.mobile-topbar-body {
+  display: grid;
+  gap: 10px;
 }
 
 .mobile-link {
@@ -799,11 +811,39 @@ tbody tr:last-child td {
 
 .mobile-time-rows {
   gap: 8px;
+  margin-top: 10px;
 }
 
 .mobile-time-row-card {
   background: rgba(47, 93, 80, 0.03);
   border: 1px solid rgba(47, 93, 80, 0.1);
+}
+
+.mobile-time-details {
+  border-top: 1px solid rgba(47, 93, 80, 0.12);
+  padding-top: 10px;
+}
+
+.mobile-time-details-toggle {
+  cursor: pointer;
+  color: var(--accent-strong);
+  font-weight: bold;
+  list-style: none;
+}
+
+.mobile-time-details-toggle::-webkit-details-marker {
+  display: none;
+}
+
+.mobile-time-details-toggle::after {
+  content: "Show";
+  margin-left: 8px;
+  color: var(--muted);
+  font-weight: normal;
+}
+
+.mobile-time-details[open] .mobile-time-details-toggle::after {
+  content: "Hide";
 }
 
 @media (max-width: 520px) {
@@ -813,6 +853,10 @@ tbody tr:last-child td {
 
   .mobile-topbar-main {
     display: grid;
+  }
+
+  .mobile-topbar-actions {
+    justify-content: start;
   }
 
   .mobile-toolbar,

@@ -9,6 +9,8 @@ const adminApp = document.getElementById("mobileAdminApp");
 const loginForm = document.getElementById("mobileAdminLoginForm");
 const loginMessage = document.getElementById("mobileAdminLoginMessage");
 const logoutButton = document.getElementById("mobileAdminLogoutButton");
+const topbarToggleButton = document.getElementById("mobileTopbarToggleButton");
+const topbarBody = document.getElementById("mobileTopbarBody");
 const monthPicker = document.getElementById("mobileMonthPicker");
 const summaryNode = document.getElementById("mobileSummary");
 const workerVideo = document.getElementById("mobileWorkerVideo");
@@ -22,6 +24,7 @@ const manualForm = document.getElementById("mobileManualForm");
 const employeeSelect = document.getElementById("mobileEmployeeCode");
 const timestampInput = document.getElementById("mobileTimestamp");
 const manualMessage = document.getElementById("mobileManualMessage");
+const timesFilterInput = document.getElementById("mobileTimesFilter");
 const leaveForm = document.getElementById("mobileLeaveForm");
 const leaveEmployeeCode = document.getElementById("mobileLeaveEmployeeCode");
 const leaveType = document.getElementById("mobileLeaveType");
@@ -40,6 +43,7 @@ const leavesNode = document.getElementById("mobileLeaves");
 const holidaysNode = document.getElementById("mobileHolidays");
 const tabButtons = Array.from(document.querySelectorAll("[data-tab]"));
 const tabPanels = Array.from(document.querySelectorAll("[data-tab-panel]"));
+const TOPBAR_COLLAPSED_KEY = "time-keep-mobile-topbar-collapsed";
 
 let employees = [];
 let refreshTimer = null;
@@ -49,6 +53,8 @@ let faceModelsReady = false;
 let faceModelsLoading = null;
 let capturedFaceDescriptor = [];
 let capturedFacePreviewUrl = "";
+let latestTimeRows = [];
+let topbarCollapsed = sessionStorage.getItem(TOPBAR_COLLAPSED_KEY) === "1";
 
 monthPicker.value = new Date().toISOString().slice(0, 7);
 timestampInput.value = nowLocalValue();
@@ -82,11 +88,21 @@ logoutButton.addEventListener("click", () => {
   lockAdmin();
 });
 
+topbarToggleButton.addEventListener("click", () => {
+  topbarCollapsed = !topbarCollapsed;
+  sessionStorage.setItem(TOPBAR_COLLAPSED_KEY, topbarCollapsed ? "1" : "0");
+  applyTopbarState();
+});
+
 for (const button of tabButtons) {
   button.addEventListener("click", () => {
     setActiveTab(button.dataset.tab || "workers");
   });
 }
+
+timesFilterInput.addEventListener("input", () => {
+  renderTimes(latestTimeRows);
+});
 
 captureFaceButton.addEventListener("click", async () => {
   captureFaceButton.disabled = true;
@@ -225,6 +241,7 @@ async function unlockAdmin() {
   authShell.hidden = true;
   adminApp.hidden = false;
   adminApp.setAttribute("aria-hidden", "false");
+  applyTopbarState();
   await refreshAll();
   setActiveTab(activeTab);
   renderFacePreview();
@@ -267,7 +284,8 @@ async function loadDashboard() {
 async function loadTimes() {
   const response = await fetch(`/api/times?month=${monthPicker.value}`);
   const data = await response.json();
-  renderTimes(data.rows);
+  latestTimeRows = data.rows;
+  renderTimes(latestTimeRows);
 }
 
 async function loadLeaves() {
@@ -361,6 +379,8 @@ function renderWorkers() {
 }
 
 function renderTimes(rows) {
+  latestTimeRows = rows;
+
   if (rows.length === 0) {
     timesNode.innerHTML = `<p class="mobile-empty">No time rows for this month.</p>`;
     return;
@@ -374,7 +394,13 @@ function renderTimes(rows) {
     .map((type) => `<option value="${type}">${escapeHtml(formatEvent(type))}</option>`)
     .join("");
 
-  const groups = groupTimeRows(rows);
+  const visibleRows = rows.filter(matchesTimeFilter);
+  if (visibleRows.length === 0) {
+    timesNode.innerHTML = `<p class="mobile-empty">No workers match that search.</p>`;
+    return;
+  }
+
+  const groups = groupTimeRows(visibleRows);
   timesNode.innerHTML = "";
 
   for (const group of groups) {
@@ -400,7 +426,10 @@ function renderTimes(rows) {
         </div>
       </div>
       <div class="mobile-time-timeline">${summary.timeline}</div>
-      <div class="mobile-list mobile-time-rows"></div>
+      <details class="mobile-time-details">
+        <summary class="mobile-time-details-toggle">Open edit rows</summary>
+        <div class="mobile-list mobile-time-rows"></div>
+      </details>
     `;
 
     const rowsNode = article.querySelector(".mobile-time-rows");
@@ -480,10 +509,18 @@ function groupTimeRows(rows) {
     groups.get(key).rows.push(row);
   }
 
-  return Array.from(groups.values()).map((group) => ({
-    ...group,
-    rows: [...group.rows].sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp))
-  }));
+  return Array.from(groups.values())
+    .map((group) => ({
+      ...group,
+      rows: [...group.rows].sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp))
+    }))
+    .sort((left, right) => {
+      const dateCompare = right.date.localeCompare(left.date);
+      if (dateCompare !== 0) {
+        return dateCompare;
+      }
+      return left.employeeName.localeCompare(right.employeeName);
+    });
 }
 
 function summarizeTimeGroup(rows) {
@@ -658,6 +695,12 @@ function setActiveTab(tabName) {
   } else {
     stopVideoStream(workerVideo);
   }
+}
+
+function applyTopbarState() {
+  topbarBody.hidden = topbarCollapsed;
+  topbarToggleButton.textContent = topbarCollapsed ? "Show menu" : "Hide menu";
+  topbarToggleButton.setAttribute("aria-expanded", String(!topbarCollapsed));
 }
 
 async function ensureWorkerCamera() {
@@ -864,6 +907,20 @@ function formatTimeOnly(value) {
     hour: "numeric",
     minute: "2-digit"
   }).format(new Date(value));
+}
+
+function matchesTimeFilter(row) {
+  const filter = normalizeSearch(timesFilterInput.value);
+  if (!filter) {
+    return true;
+  }
+
+  const haystack = normalizeSearch(`${row.employeeCode} ${row.employeeName}`);
+  return haystack.includes(filter);
+}
+
+function normalizeSearch(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function nowLocalValue() {
