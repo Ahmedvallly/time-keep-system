@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Time Keep Admin</title>
-    <link rel="stylesheet" href="/styles.css?v=2026.08.11.07">
+    <link rel="stylesheet" href="/styles.css?v=2026.08.11.08">
   </head>
   <body class="mobile-body">
     <main class="mobile-layout">
@@ -86,19 +86,31 @@
               </div>
               <canvas id="mobileWorkerCanvas" hidden></canvas>
               <form id="mobileWorkerForm" class="stack-form">
-                <div id="mobileFacePreview" class="mobile-face-preview mobile-empty">No face captured yet.</div>
                 <div class="mobile-worker-setup-order">
                   <span class="mobile-badge">Step 2</span>
                   <strong>Add worker details</strong>
                 </div>
-                <input name="name" id="mobileWorkerName" placeholder="Worker name" required>
-                <select name="role" id="mobileWorkerRole" required>
-                  <option value="general">General</option>
-                  <option value="driver">Driver</option>
-                  <option value="admin">Admin</option>
-                </select>
-                <input name="monthlyTargetHours" id="mobileWorkerTargetHours" type="number" min="0" step="0.25" value="182" placeholder="Hours worked target" required>
-                <input name="code" id="mobileWorkerCode" placeholder="Employee code" required>
+                <label class="mobile-field">
+                  <span>Name of worker</span>
+                  <input name="name" id="mobileWorkerName" placeholder="Worker name" required>
+                </label>
+                <label class="mobile-field">
+                  <span>Role of worker</span>
+                  <select name="role" id="mobileWorkerRole" required>
+                    <option value="general">General</option>
+                    <option value="driver">Driver</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </label>
+                <label class="mobile-field">
+                  <span>Hours of worker</span>
+                  <input name="monthlyTargetHours" id="mobileWorkerTargetHours" type="number" min="0" step="0.25" value="182" placeholder="Hours worked target" required>
+                </label>
+                <label class="mobile-field">
+                  <span>Employee code</span>
+                  <input name="code" id="mobileWorkerCode" placeholder="Employee code" required>
+                </label>
+                <div id="mobileFacePreview" class="mobile-face-preview mobile-empty">No face captured yet.</div>
                 <details class="mobile-advanced-toggle">
                   <summary>More options</summary>
                   <textarea name="notes" id="mobileWorkerNotes" rows="3" placeholder="Notes"></textarea>
@@ -243,6 +255,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <script src="/mobile-admin.js?v=2026.08.11.07"></script>
+    <script src="/mobile-admin.js?v=2026.08.11.08"></script>
   </body>
 </html>

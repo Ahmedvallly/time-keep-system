@@ -27,6 +27,7 @@ const captureFaceButton = document.getElementById("mobileCaptureFaceButton");
 const facePreview = document.getElementById("mobileFacePreview");
 const workerRoleInput = document.getElementById("mobileWorkerRole");
 const workerTargetHoursInput = document.getElementById("mobileWorkerTargetHours");
+const workerNameInput = document.getElementById("mobileWorkerName");
 const undoWorkerDeleteButton = document.getElementById("mobileUndoWorkerDeleteButton");
 const workersNode = document.getElementById("mobileWorkers");
 const manualForm = document.getElementById("mobileManualForm");
@@ -218,7 +219,10 @@ captureFaceButton.addEventListener("click", async () => {
     capturedFaceDescriptor = Array.from(capture.descriptor.descriptor);
     capturedFacePreviewUrl = capture.previewUrl;
     renderFacePreview();
-    setMessage(workerMessage, "Face captured. Save the worker now.");
+    setWorkerCameraOpen(false);
+    workerNameInput.focus();
+    workerNameInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    setMessage(workerMessage, "Face captured. Now add worker name, role, hours, and save.");
   } catch (error) {
     setMessage(workerMessage, error.message, true);
   } finally {

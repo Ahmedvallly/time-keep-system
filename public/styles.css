@@ -797,6 +797,18 @@ tbody tr:last-child td {
   font-size: 0.98rem;
 }
 
+.mobile-field {
+  display: grid;
+  gap: 6px;
+}
+
+.mobile-field span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .mobile-kiosk .mobile-camera-target {
   display: none;
 }
