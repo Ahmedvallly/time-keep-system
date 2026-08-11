@@ -774,7 +774,8 @@ tbody tr:last-child td {
 }
 
 .mobile-worker-camera-panel-fullscreen .mobile-camera-video {
-  object-fit: cover;
+  object-fit: contain;
+  background: #05090d;
 }
 
 .mobile-worker-camera-panel-fullscreen .mobile-camera-target {

@@ -388,9 +388,13 @@ async function upsertEmployee(input) {
   const existingIndex = employees.findIndex((employee) => employee.code === code);
   const existingEmployee = existingIndex >= 0 ? employees[existingIndex] : null;
   const hasIncomingFaceDescriptor = Object.prototype.hasOwnProperty.call(input, "faceDescriptor");
+  const hasIncomingFacePhotoDataUrl = Object.prototype.hasOwnProperty.call(input, "facePhotoDataUrl");
   const faceDescriptor = hasIncomingFaceDescriptor
     ? normalizeFaceDescriptor(input.faceDescriptor)
     : normalizeFaceDescriptor(existingEmployee ? existingEmployee.faceDescriptor : []);
+  const facePhotoDataUrl = hasIncomingFacePhotoDataUrl
+    ? normalizeFacePhotoDataUrl(input.facePhotoDataUrl)
+    : String(existingEmployee?.facePhotoDataUrl || "");
   const employee = {
     id: existingEmployee ? existingEmployee.id : `emp-${Date.now()}`,
     code,
@@ -399,6 +403,7 @@ async function upsertEmployee(input) {
     monthlyTargetHours,
     notes,
     faceDescriptor,
+    facePhotoDataUrl,
     faceUpdatedAt: faceDescriptor.length > 0
       ? (hasIncomingFaceDescriptor ? new Date().toISOString() : String(existingEmployee?.faceUpdatedAt || ""))
       : String(existingEmployee?.faceUpdatedAt || "")
@@ -677,6 +682,7 @@ function normalizeRestoredEmployee(employee) {
     monthlyTargetHours: Number(employee.monthlyTargetHours),
     notes: String(employee.notes || ""),
     faceDescriptor: normalizeFaceDescriptor(employee.faceDescriptor),
+    facePhotoDataUrl: normalizeFacePhotoDataUrl(employee.facePhotoDataUrl),
     faceUpdatedAt: String(employee.faceUpdatedAt || "")
   };
 }
@@ -1547,6 +1553,19 @@ function normalizeFaceDescriptor(value) {
   }
 
   return descriptor;
+}
+
+function normalizeFacePhotoDataUrl(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+
+  if (!text.startsWith("data:image/")) {
+    throw httpError(400, "Worker photo must be an image.");
+  }
+
+  return text;
 }
 
 function normalizeLeaveType(type) {

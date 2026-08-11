@@ -1,23 +1,41 @@
 package com.timekeepsystem.mobile;
 
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.speech.tts.TextToSpeech;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebSettings;
 import android.webkit.WebView;
 
 import com.getcapacitor.BridgeActivity;
 
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 public class MainActivity extends BridgeActivity {
+    private static final String APP_SHELL_CONFIG_URL = "https://time-keep-system.onrender.com/api/app-shell-config";
+    private static final long APP_SHELL_REFRESH_DEBOUNCE_MS = 15000;
+    private static final String PREFS_NAME = "time_keep_mobile";
+    private static final String PREF_LAST_APP_SHELL_VERSION = "last_app_shell_version";
+    private static final String PREF_LAST_APP_SHELL_URL = "last_app_shell_url";
+    private static final long RESUME_REFRESH_THRESHOLD_MS = 45000;
+
     private final Handler handler = new Handler(Looper.getMainLooper());
     private TextToSpeech textToSpeech;
     private boolean ttsReady = false;
     private String pendingSpeechMessage = null;
+    private long lastAppShellRefreshAt = 0L;
+    private long pausedAt = 0L;
 
     private final Runnable webEnhancementTask = new Runnable() {
         @Override
@@ -27,22 +45,42 @@ public class MainActivity extends BridgeActivity {
         }
     };
 
+    private final Runnable appShellRefreshTask = new Runnable() {
+        @Override
+        public void run() {
+            refreshHostedAppShell(false);
+            handler.postDelayed(this, 300000);
+        }
+    };
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         initializeNativeTts();
         configureWebViewBridges();
+        refreshHostedAppShell(true);
     }
 
     @Override
     public void onResume() {
         super.onResume();
         injectWebEnhancements();
+        if (pausedAt > 0L && System.currentTimeMillis() - pausedAt >= RESUME_REFRESH_THRESHOLD_MS) {
+            refreshHostedAppShell(false);
+        }
+        pausedAt = 0L;
+    }
+
+    @Override
+    public void onPause() {
+        pausedAt = System.currentTimeMillis();
+        super.onPause();
     }
 
     @Override
     public void onDestroy() {
         handler.removeCallbacks(webEnhancementTask);
+        handler.removeCallbacks(appShellRefreshTask);
         if (textToSpeech != null) {
             textToSpeech.stop();
             textToSpeech.shutdown();
@@ -75,10 +113,15 @@ public class MainActivity extends BridgeActivity {
             return;
         }
 
+        WebSettings settings = webView.getSettings();
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
+        settings.setDomStorageEnabled(true);
+
         webView.addJavascriptInterface(new NativeTtsBridge(), "nativeTts");
         webView.addJavascriptInterface(new NativeAppBridge(), "nativeApp");
         webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> openExternalUrl(url));
         handler.postDelayed(webEnhancementTask, 1200);
+        handler.postDelayed(appShellRefreshTask, 300000);
     }
 
     private void injectWebEnhancements() {
@@ -151,6 +194,100 @@ public class MainActivity extends BridgeActivity {
 
         textToSpeech.stop();
         textToSpeech.speak(message, TextToSpeech.QUEUE_FLUSH, null, "scan-message");
+    }
+
+    private void refreshHostedAppShell(boolean force) {
+        long now = System.currentTimeMillis();
+        if (!force && now - lastAppShellRefreshAt < APP_SHELL_REFRESH_DEBOUNCE_MS) {
+            return;
+        }
+        lastAppShellRefreshAt = now;
+
+        new Thread(() -> {
+            try {
+                HttpURLConnection connection = (HttpURLConnection) new URL(APP_SHELL_CONFIG_URL).openConnection();
+                connection.setRequestMethod("GET");
+                connection.setConnectTimeout(10000);
+                connection.setReadTimeout(10000);
+                connection.setUseCaches(false);
+                connection.setRequestProperty("Cache-Control", "no-cache");
+                connection.setRequestProperty("Pragma", "no-cache");
+
+                BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)
+                );
+                StringBuilder response = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+                reader.close();
+                connection.disconnect();
+
+                JSONObject config = new JSONObject(response.toString());
+                String version = config.optString("version", "");
+                String mobileUrl = config.optString("mobileUrl", "");
+                if (mobileUrl.isEmpty()) {
+                    return;
+                }
+
+                SharedPreferences preferences = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                String lastVersion = preferences.getString(PREF_LAST_APP_SHELL_VERSION, "");
+                String lastUrl = preferences.getString(PREF_LAST_APP_SHELL_URL, "");
+                boolean shouldReload = force || !version.equals(lastVersion) || !mobileUrl.equals(lastUrl);
+
+                if (!shouldReload) {
+                    runOnUiThread(() -> {
+                        WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+                        if (webView != null) {
+                            webView.clearCache(true);
+                            webView.reload();
+                        }
+                    });
+                    return;
+                }
+
+                preferences.edit()
+                    .putString(PREF_LAST_APP_SHELL_VERSION, version)
+                    .putString(PREF_LAST_APP_SHELL_URL, mobileUrl)
+                    .apply();
+
+                String cacheBustedUrl = appendCacheBuster(mobileUrl, version);
+                runOnUiThread(() -> {
+                    WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+                    if (webView == null) {
+                        return;
+                    }
+                    webView.clearHistory();
+                    webView.clearCache(true);
+                    webView.loadUrl(cacheBustedUrl);
+                });
+            } catch (Exception ignored) {
+                runOnUiThread(() -> {
+                    WebView webView = getBridge() != null ? getBridge().getWebView() : null;
+                    if (webView != null) {
+                        webView.clearCache(true);
+                        webView.reload();
+                    }
+                });
+            }
+        }).start();
+    }
+
+    private String appendCacheBuster(String url, String version) {
+        Uri uri = Uri.parse(url);
+        Uri.Builder builder = uri.buildUpon().clearQuery();
+        for (String name : uri.getQueryParameterNames()) {
+            if (!"_appShellTs".equals(name)) {
+                for (String value : uri.getQueryParameters(name)) {
+                    builder.appendQueryParameter(name, value);
+                }
+            }
+        }
+        builder.appendQueryParameter("_appShellTs", (version == null || version.isEmpty())
+            ? String.valueOf(System.currentTimeMillis())
+            : version + "-" + System.currentTimeMillis());
+        return builder.build().toString();
     }
 
     private final class NativeTtsBridge {

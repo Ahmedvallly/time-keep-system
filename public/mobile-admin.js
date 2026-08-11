@@ -73,6 +73,7 @@ let faceModelsReady = false;
 let faceModelsLoading = null;
 let capturedFaceDescriptor = [];
 let capturedFacePreviewUrl = "";
+let capturedFacePhotoDataUrl = "";
 let latestTimeRows = [];
 let latestHolidayRows = [];
 let latestDashboardWorkers = [];
@@ -210,19 +211,21 @@ undoTimeDeleteButton.addEventListener("click", async () => {
 
 captureFaceButton.addEventListener("click", async () => {
   captureFaceButton.disabled = true;
-  setMessage(workerMessage, "Capturing face. Hold still and keep one face in the frame...");
+  setMessage(workerMessage, "Capturing photo...");
 
   try {
     await ensureWorkerCamera();
-    await ensureFaceModels();
     const capture = await captureWorkerFace(workerVideo, workerCanvas);
-    capturedFaceDescriptor = Array.from(capture.descriptor.descriptor);
+    capturedFaceDescriptor = Array.isArray(capture.descriptor) ? capture.descriptor : [];
     capturedFacePreviewUrl = capture.previewUrl;
+    capturedFacePhotoDataUrl = capture.previewUrl;
     renderFacePreview();
-    setWorkerCameraOpen(false);
-    workerNameInput.focus();
-    workerNameInput.scrollIntoView({ behavior: "smooth", block: "center" });
-    setMessage(workerMessage, "Face captured. Now add worker name, role, hours, and save.");
+    setMessage(
+      workerMessage,
+      capturedFaceDescriptor.length === 128
+        ? "Photo captured. Add worker name, role, hours, then save."
+        : "Photo captured. Add worker name, role, hours, then save. Face scanning can be updated later if needed."
+    );
   } catch (error) {
     setMessage(workerMessage, error.message, true);
   } finally {
@@ -234,8 +237,8 @@ workerForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(workerForm);
 
-  if (capturedFaceDescriptor.length !== 128) {
-    setMessage(workerMessage, "Capture the worker face before saving.", true);
+  if (!capturedFacePhotoDataUrl) {
+    setMessage(workerMessage, "Capture the worker photo before saving.", true);
     return;
   }
 
@@ -250,7 +253,8 @@ workerForm.addEventListener("submit", async (event) => {
         role: formData.get("role"),
         monthlyTargetHours: Number(formData.get("monthlyTargetHours")),
         notes: formData.get("notes"),
-        faceDescriptor: capturedFaceDescriptor
+        faceDescriptor: capturedFaceDescriptor,
+        facePhotoDataUrl: capturedFacePhotoDataUrl
       }
     });
 
@@ -259,8 +263,9 @@ workerForm.addEventListener("submit", async (event) => {
     workerTargetHoursInput.value = String(rolePresetHours("general"));
     capturedFaceDescriptor = [];
     capturedFacePreviewUrl = "";
+    capturedFacePhotoDataUrl = "";
     renderFacePreview();
-    setMessage(workerMessage, `Saved ${employee.name} with a face profile.`);
+    setMessage(workerMessage, `Saved ${employee.name}.`);
     await refreshAll();
   } catch (error) {
     setMessage(workerMessage, error.message, true);
@@ -607,6 +612,7 @@ function renderWorkers() {
   for (const employee of employees) {
     const summary = summaryByCode.get(employee.code) || null;
     const hasFace = Array.isArray(employee.faceDescriptor) && employee.faceDescriptor.length === 128;
+    const hasPhoto = Boolean(employee.facePhotoDataUrl);
     const article = document.createElement("article");
     article.className = `mobile-worker-row ${summary ? summary.statusClass : ""}`;
     article.innerHTML = `
@@ -617,7 +623,7 @@ function renderWorkers() {
       <span>${escapeHtml(formatWorkerRole(employee.role))}</span>
       <span class="mobile-badge">${escapeHtml(summary ? summary.todayStatus : "No scan")}</span>
       <span>${escapeHtml(formatHours(employee.monthlyTargetHours || 0))}</span>
-      <span>${escapeHtml(hasFace ? "Ready" : "Missing")}</span>
+      <span>${escapeHtml(hasFace ? "Ready" : hasPhoto ? "Photo only" : "Missing")}</span>
       <span class="mobile-edit-actions">
         <button class="button secondary small-button" type="button" data-action="delete">Delete worker</button>
       </span>
@@ -1285,20 +1291,26 @@ async function ensureFaceModels() {
 }
 
 async function captureWorkerFace(video, canvas) {
-  const liveDetection = await tryDetectFaceDescriptor(video);
   captureVideoFrame(video, canvas);
   const previewUrl = canvas.toDataURL("image/jpeg", 0.9);
+  let descriptor = [];
 
-  if (liveDetection) {
-    return { descriptor: liveDetection, previewUrl };
+  try {
+    await ensureFaceModels();
+    const liveDetection = await tryDetectFaceDescriptor(video);
+    if (liveDetection?.descriptor?.descriptor) {
+      descriptor = Array.from(liveDetection.descriptor.descriptor);
+    } else {
+      const imageDetection = await tryDetectFaceDescriptor(canvas);
+      if (imageDetection?.descriptor?.descriptor) {
+        descriptor = Array.from(imageDetection.descriptor.descriptor);
+      }
+    }
+  } catch {
+    descriptor = [];
   }
 
-  const imageDetection = await tryDetectFaceDescriptor(canvas);
-  if (imageDetection) {
-    return { descriptor: imageDetection, previewUrl };
-  }
-
-  throw new Error("No face found. Keep one face in the frame, move into better light, and try again.");
+  return { descriptor, previewUrl };
 }
 
 async function tryDetectFaceDescriptor(source) {
@@ -1340,14 +1352,14 @@ function pause(ms) {
 function renderFacePreview() {
   if (!capturedFacePreviewUrl) {
     facePreview.className = "mobile-face-preview mobile-empty";
-    facePreview.textContent = "No face captured yet.";
+    facePreview.textContent = "No worker photo captured yet.";
     return;
   }
 
   facePreview.className = "mobile-face-preview";
   facePreview.innerHTML = `
     <img src="${capturedFacePreviewUrl}" alt="Captured worker face">
-    <p>Face captured and ready to save.</p>
+    <p>${capturedFaceDescriptor.length === 128 ? "Photo captured and ready to save." : "Photo captured and ready to save worker details."}</p>
   `;
 }
 

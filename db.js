@@ -156,6 +156,7 @@ async function replaceEmployees(employees) {
       monthlyTargetHours: Number(employee.monthlyTargetHours),
       notes: String(employee.notes || ""),
       faceDescriptor: normalizeFaceDescriptor(employee.faceDescriptor),
+      facePhotoDataUrl: normalizeFacePhotoDataUrl(employee.facePhotoDataUrl),
       faceUpdatedAt: employee.faceUpdatedAt ? String(employee.faceUpdatedAt) : ""
     }))
     .sort((left, right) => left.name.localeCompare(right.name) || left.code.localeCompare(right.code));
@@ -252,6 +253,7 @@ function toEmployee(document) {
     monthlyTargetHours: Number(document.monthlyTargetHours),
     notes: document.notes || "",
     faceDescriptor: normalizeFaceDescriptor(document.faceDescriptor),
+    facePhotoDataUrl: normalizeFacePhotoDataUrl(document.facePhotoDataUrl),
     faceUpdatedAt: document.faceUpdatedAt || ""
   };
 }
@@ -264,6 +266,11 @@ function normalizeFaceDescriptor(value) {
   return value
     .map((entry) => Number(entry))
     .filter((entry) => Number.isFinite(entry));
+}
+
+function normalizeFacePhotoDataUrl(value) {
+  const text = String(value || "").trim();
+  return text.startsWith("data:image/") ? text : "";
 }
 
 function toScan(document) {
