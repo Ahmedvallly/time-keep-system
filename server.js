@@ -191,6 +191,17 @@ async function requestListener(req, res) {
       return;
     }
 
+    if (req.method === "GET" && url.pathname === "/api/weekly-report.pdf") {
+      const month = url.searchParams.get("month");
+      const pdf = buildWeeklyPdf(month);
+      res.writeHead(200, {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="attendance-weekly-${normalizeMonth(month)}.pdf"`
+      });
+      res.end(pdf);
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/api/export-live.csv") {
       res.writeHead(200, {
         "Content-Type": "text/csv; charset=utf-8",
@@ -892,6 +903,7 @@ function buildWeeklyBreakdown(monthParam) {
             ? roundToTwo((employee.monthlyTargetHours / totalWorkdaysInMonth) * workdaysInWeek)
             : 0;
           const workedHours = minutesToHours(workedMinutes);
+          const balanceHours = roundToTwo(workedHours - weekTargetHours);
 
           return {
             code: employee.code,
@@ -900,7 +912,8 @@ function buildWeeklyBreakdown(monthParam) {
             breakHours: minutesToHours(breakMinutes),
             daysWorked,
             weekTargetHours,
-            overHours: roundToTwo(Math.max(0, workedHours - weekTargetHours))
+            overHours: balanceHours,
+            balanceHours
           };
         })
       };
@@ -1160,6 +1173,36 @@ function buildMonthlyPdf(monthParam) {
   }
 
   lines.push("Absent days are counted as Monday to Saturday non-holiday dates in the selected month with no clock-in scan recorded and no approved leave.");
+  return createSimplePdf(lines);
+}
+
+function buildWeeklyPdf(monthParam) {
+  const month = normalizeMonth(monthParam);
+  const weekly = buildWeeklyBreakdown(month);
+  const monthName = formatMonthTitle(month);
+  const lines = [
+    `Weekly Attendance Report - ${monthName}`,
+    `Generated: ${new Date().toLocaleString()}`,
+    ""
+  ];
+
+  if (weekly.weeks.length === 0) {
+    lines.push("No weekly data for this month.");
+    return createSimplePdf(lines);
+  }
+
+  for (const week of weekly.weeks) {
+    lines.push(`${week.label} (${week.start} to ${week.end})`);
+
+    for (const worker of week.workers) {
+      lines.push(
+        `${worker.name} (${worker.code}) | Days ${worker.daysWorked} | Worked ${worker.workedHours.toFixed(2)}h | Target ${worker.weekTargetHours.toFixed(2)}h | Balance ${worker.balanceHours.toFixed(2)}h`
+      );
+    }
+
+    lines.push("");
+  }
+
   return createSimplePdf(lines);
 }
 
@@ -1426,7 +1469,7 @@ function createSimplePdf(lines) {
 
     pageLines.forEach((line, index) => {
       const y = top - index * lineHeight;
-      content.push(`1 0 0 1 ${left} ${y} Tm (${escapePdfText(line)}) Tj`);
+      content.push(`1 0 0 1 ${left} ${y} Tm (${escapePdfText(toPdfSafeText(line))}) Tj`);
     });
 
     content.push("ET");
@@ -1461,6 +1504,14 @@ function escapePdfText(value) {
     .replaceAll("\\", "\\\\")
     .replaceAll("(", "\\(")
     .replaceAll(")", "\\)");
+}
+
+function toPdfSafeText(value) {
+  return String(value ?? "")
+    .normalize("NFKD")
+    .replace(/[^\x20-\x7E]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizeMonth(month) {

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Time Keep Admin</title>
-    <link rel="stylesheet" href="/styles.css?v=2026.08.07.21">
+    <link rel="stylesheet" href="/styles.css?v=2026.08.11.05">
   </head>
   <body class="mobile-body">
     <main class="mobile-layout">
@@ -67,32 +67,42 @@
                 <h2>Add worker with face</h2>
                 <p>Capture one front selfie before saving the worker.</p>
               </div>
-              <button class="button secondary" id="mobileWorkerCameraToggleButton" type="button">Add photo</button>
-              <div class="mobile-worker-camera-panel" id="mobileWorkerCameraPanel" hidden>
-                <div class="mobile-camera-shell mobile-camera-shell-compact">
+              <div class="mobile-worker-setup-order">
+                <span class="mobile-badge">Step 1</span>
+                <strong>Add picture first</strong>
+              </div>
+              <button class="button" id="mobileWorkerCameraToggleButton" type="button">Add photo</button>
+              <div class="mobile-worker-camera-panel mobile-worker-camera-panel-fullscreen" id="mobileWorkerCameraPanel" hidden>
+                <div class="mobile-camera-shell mobile-camera-shell-fullscreen">
                   <video id="mobileWorkerVideo" class="mobile-camera-video" autoplay muted playsinline></video>
                   <div class="mobile-camera-overlay">
                     <div class="mobile-camera-target"></div>
                   </div>
                 </div>
-                <button class="button secondary" id="mobileCaptureFaceButton" type="button">Capture face</button>
-                <button class="button secondary" id="mobileWorkerCameraCloseButton" type="button">Close photo</button>
+                <div class="mobile-worker-camera-actions">
+                  <button class="button" id="mobileCaptureFaceButton" type="button">Capture face</button>
+                  <button class="button secondary" id="mobileWorkerCameraCloseButton" type="button">Close photo</button>
+                </div>
               </div>
               <canvas id="mobileWorkerCanvas" hidden></canvas>
               <form id="mobileWorkerForm" class="stack-form">
+                <div id="mobileFacePreview" class="mobile-face-preview mobile-empty">No face captured yet.</div>
+                <div class="mobile-worker-setup-order">
+                  <span class="mobile-badge">Step 2</span>
+                  <strong>Add worker details</strong>
+                </div>
                 <input name="name" id="mobileWorkerName" placeholder="Worker name" required>
-                <input name="code" id="mobileWorkerCode" placeholder="Employee code" required>
                 <select name="role" id="mobileWorkerRole" required>
                   <option value="general">General</option>
                   <option value="driver">Driver</option>
                   <option value="admin">Admin</option>
                 </select>
-                <input name="monthlyTargetHours" id="mobileWorkerTargetHours" type="number" min="0" step="0.25" value="182" required>
+                <input name="monthlyTargetHours" id="mobileWorkerTargetHours" type="number" min="0" step="0.25" value="182" placeholder="Hours worked target" required>
+                <input name="code" id="mobileWorkerCode" placeholder="Employee code" required>
                 <details class="mobile-advanced-toggle">
                   <summary>More options</summary>
                   <textarea name="notes" id="mobileWorkerNotes" rows="3" placeholder="Notes"></textarea>
                 </details>
-                <div id="mobileFacePreview" class="mobile-face-preview mobile-empty">No face captured yet.</div>
                 <button class="button" type="submit">Save worker</button>
                 <p id="mobileWorkerMessage" class="message"></p>
                 <button class="button secondary small-button" id="mobileUndoWorkerDeleteButton" type="button" hidden>Undo deleted worker</button>
@@ -143,6 +153,7 @@
                   <button class="button secondary small-button" id="mobileTimeEditModeButton" type="button">Edit mode off</button>
                   <a class="button secondary small-button" id="mobileMonthlyCsvLink" href="/api/export.csv" target="_blank" rel="noopener">Monthly CSV</a>
                   <a class="button secondary small-button" id="mobileMonthlyPdfLink" href="/api/report.pdf" target="_blank" rel="noopener">Print month PDF</a>
+                  <a class="button secondary small-button" id="mobileWeeklyPdfLink" href="/api/weekly-report.pdf" target="_blank" rel="noopener">Print week PDF</a>
                 </div>
               </div>
               <div class="mobile-filter-grid">
@@ -232,6 +243,6 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <script src="/mobile-admin.js?v=2026.08.07.21"></script>
+    <script src="/mobile-admin.js?v=2026.08.11.05"></script>
   </body>
 </html>

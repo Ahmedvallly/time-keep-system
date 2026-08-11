@@ -2,6 +2,7 @@ const FACE_MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.j
 const FACE_MATCH_THRESHOLD = 0.5;
 const FACE_SCAN_INTERVAL_MS = 1400;
 const FACE_SCAN_COOLDOWN_MS = 12000;
+const REMOTE_API_BASE = "https://time-keep-system.onrender.com";
 
 const startButton = document.getElementById("mobileScannerStartButton");
 const faceScanVideo = document.getElementById("mobileFaceScanVideo");
@@ -22,19 +23,20 @@ let refreshTimer = null;
 let scannerStarted = false;
 let speechPrimed = false;
 let bannerTimer = null;
+const API_BASE = resolveApiBase();
 
 async function refreshAll() {
   await Promise.all([loadEmployees(), loadDashboard()]);
 }
 
 async function loadEmployees() {
-  const response = await fetch("/api/employees");
+  const response = await fetch(apiUrl("/api/employees"));
   employees = await response.json();
 }
 
 async function loadDashboard() {
   const month = new Date().toISOString().slice(0, 7);
-  const response = await fetch(`/api/dashboard?month=${month}`);
+  const response = await fetch(apiUrl(`/api/dashboard?month=${month}`));
   const data = await response.json();
   window.__latestTodayScans = data.todayScans;
 }
@@ -271,7 +273,7 @@ function hasRegisteredFace(employee) {
 }
 
 async function sendJson(url, { method, body }) {
-  const response = await fetch(url, {
+  const response = await fetch(apiUrl(url), {
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
@@ -330,6 +332,20 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll("\"", "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function resolveApiBase() {
+  const protocol = String(window.location.protocol || "");
+  const hostname = String(window.location.hostname || "");
+  const isBundledApp = protocol === "capacitor:" || protocol === "file:" || hostname === "localhost";
+  return isBundledApp ? REMOTE_API_BASE : "";
+}
+
+function apiUrl(path) {
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+  return `${API_BASE}${path}`;
 }
 
 refreshAll()

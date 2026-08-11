@@ -4,6 +4,7 @@ const monthPicker = document.getElementById("monthPicker");
 const exportLink = document.getElementById("exportLink");
 const timesExportLink = document.getElementById("timesExportLink");
 const reportPdfLink = document.getElementById("reportPdfLink");
+const weeklyPdfLink = document.getElementById("weeklyPdfLink");
 const scanForm = document.getElementById("scanForm");
 const scanCode = document.getElementById("scanCode");
 const scanMessage = document.getElementById("scanMessage");
@@ -207,6 +208,7 @@ function updateExportLinks() {
   exportLink.href = `/api/export.csv?month=${monthPicker.value}`;
   timesExportLink.href = `/api/export-times.csv?month=${monthPicker.value}`;
   reportPdfLink.href = `/api/report.pdf?month=${monthPicker.value}`;
+  weeklyPdfLink.href = `/api/weekly-report.pdf?month=${monthPicker.value}`;
 }
 
 async function loadDashboard() {

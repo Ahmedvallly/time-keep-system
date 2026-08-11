@@ -3,6 +3,7 @@ const FACE_MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.j
 const ADMIN_USERNAME = "a";
 const ADMIN_PASSWORD = "a";
 const ADMIN_SESSION_KEY = "time-keep-mobile-admin-auth";
+const REMOTE_API_BASE = "https://time-keep-system.onrender.com";
 
 const authShell = document.getElementById("mobileAdminAuthShell");
 const adminApp = document.getElementById("mobileAdminApp");
@@ -37,6 +38,7 @@ const timeViewButtons = Array.from(document.querySelectorAll("[data-time-view]")
 const timeEditModeButton = document.getElementById("mobileTimeEditModeButton");
 const monthlyCsvLink = document.getElementById("mobileMonthlyCsvLink");
 const monthlyPdfLink = document.getElementById("mobileMonthlyPdfLink");
+const weeklyPdfLink = document.getElementById("mobileWeeklyPdfLink");
 const timeDeleteMessage = document.getElementById("mobileTimeDeleteMessage");
 const undoTimeDeleteButton = document.getElementById("mobileUndoTimeDeleteButton");
 const timesRoleFilter = document.getElementById("mobileTimesRoleFilter");
@@ -80,6 +82,8 @@ let timeViewMode = "today";
 let timeEditModeEnabled = false;
 let lastDeletedWorkerPayload = null;
 let lastDeletedTimePayload = null;
+let topbarResizeObserver = null;
+const API_BASE = resolveApiBase();
 
 monthPicker.value = new Date().toISOString().slice(0, 7);
 timestampInput.value = nowLocalValue();
@@ -90,6 +94,7 @@ workerRoleInput.value = "general";
 workerTargetHoursInput.value = String(rolePresetHours(workerRoleInput.value));
 
 lockAdmin();
+syncTopbarOffset();
 
 loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -340,12 +345,17 @@ monthPicker.addEventListener("change", () => {
   refreshAll();
 });
 
+window.addEventListener("resize", syncTopbarOffset);
+window.visualViewport?.addEventListener("resize", syncTopbarOffset);
+
 async function unlockAdmin() {
   authShell.hidden = true;
   authShell.style.display = "none";
   adminApp.hidden = false;
   adminApp.style.display = "";
   adminApp.setAttribute("aria-hidden", "false");
+  watchTopbarSize();
+  syncTopbarOffset();
   setWorkerCameraOpen(false);
   renderTimeViewButtons();
   renderTimeEditModeButton();
@@ -375,6 +385,7 @@ function lockAdmin() {
   adminApp.hidden = true;
   adminApp.style.display = "none";
   adminApp.setAttribute("aria-hidden", "true");
+  stopWatchingTopbarSize();
 }
 
 async function refreshAll() {
@@ -383,7 +394,7 @@ async function refreshAll() {
 }
 
 async function loadEmployees() {
-  const response = await fetch("/api/employees");
+  const response = await fetch(apiUrl("/api/employees"));
   employees = await response.json();
   renderEmployeeOptions(employees);
   renderWorkers();
@@ -391,7 +402,7 @@ async function loadEmployees() {
 }
 
 async function loadDashboard() {
-  const response = await fetch(`/api/dashboard?month=${monthPicker.value}`);
+  const response = await fetch(apiUrl(`/api/dashboard?month=${monthPicker.value}`));
   const data = await response.json();
   latestDashboardWorkers = data.workers;
   renderSummary(data.workers);
@@ -399,7 +410,7 @@ async function loadDashboard() {
 }
 
 async function loadTimes() {
-  const response = await fetch(`/api/times?month=${monthPicker.value}`);
+  const response = await fetch(apiUrl(`/api/times?month=${monthPicker.value}`));
   const data = await response.json();
   latestTimeRows = data.rows;
   updateMonthExportLinks();
@@ -409,14 +420,14 @@ async function loadTimes() {
 }
 
 async function loadLeaves() {
-  const response = await fetch(`/api/leaves?month=${monthPicker.value}`);
+  const response = await fetch(apiUrl(`/api/leaves?month=${monthPicker.value}`));
   const data = await response.json();
   renderLeaveBalances(data.balances);
   renderLeaves(data.rows);
 }
 
 async function loadHolidays() {
-  const response = await fetch(`/api/holidays?month=${monthPicker.value}`);
+  const response = await fetch(apiUrl(`/api/holidays?month=${monthPicker.value}`));
   const data = await response.json();
   latestHolidayRows = data.rows;
   renderHolidays(data.rows);
@@ -610,7 +621,7 @@ function renderWorkers() {
 
     article.querySelector('[data-action="delete"]').addEventListener("click", async () => {
       try {
-        const response = await fetch(`/api/employees/${encodeURIComponent(employee.code)}`, { method: "DELETE" });
+        const response = await fetch(apiUrl(`/api/employees/${encodeURIComponent(employee.code)}`), { method: "DELETE" });
         const data = await response.json();
         if (!response.ok) {
           throw new Error(data.error || "Delete failed.");
@@ -991,7 +1002,7 @@ function createEditableTimeRow(row, employeeOptions, eventOptions) {
 
   rowCard.querySelector('[data-action="delete"]').addEventListener("click", async () => {
     try {
-      const response = await fetch(`/api/scans/${row.id}`, { method: "DELETE" });
+      const response = await fetch(apiUrl(`/api/scans/${row.id}`), { method: "DELETE" });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error || "Delete failed.");
@@ -1081,7 +1092,7 @@ function renderLeaves(rows) {
 
     article.querySelector('[data-action="delete"]').addEventListener("click", async () => {
       try {
-        const response = await fetch(`/api/leaves/${row.id}`, { method: "DELETE" });
+        const response = await fetch(apiUrl(`/api/leaves/${row.id}`), { method: "DELETE" });
         if (!response.ok) {
           const data = await response.json();
           throw new Error(data.error || "Delete failed.");
@@ -1123,7 +1134,7 @@ function renderHolidays(rows) {
 
     article.querySelector('[data-action="delete"]').addEventListener("click", async () => {
       try {
-        const response = await fetch(`/api/holidays/${row.id}`, { method: "DELETE" });
+        const response = await fetch(apiUrl(`/api/holidays/${row.id}`), { method: "DELETE" });
         if (!response.ok) {
           const data = await response.json();
           throw new Error(data.error || "Delete failed.");
@@ -1169,12 +1180,41 @@ function setActiveTab(tabName) {
   } else {
     stopVideoStream(workerVideo);
   }
+
+  syncTopbarOffset();
+}
+
+function syncTopbarOffset() {
+  const topbarHeight = topbarNode ? Math.ceil(topbarNode.getBoundingClientRect().height) : 0;
+  const offset = Math.max(68, topbarHeight + 10);
+  document.body.style.setProperty("--mobile-topbar-offset", `${offset}px`);
+}
+
+function watchTopbarSize() {
+  if (!topbarNode || topbarResizeObserver) {
+    return;
+  }
+
+  topbarResizeObserver = new ResizeObserver(() => {
+    syncTopbarOffset();
+  });
+  topbarResizeObserver.observe(topbarNode);
+}
+
+function stopWatchingTopbarSize() {
+  if (!topbarResizeObserver) {
+    return;
+  }
+
+  topbarResizeObserver.disconnect();
+  topbarResizeObserver = null;
 }
 
 function setWorkerCameraOpen(nextValue) {
   workerCameraOpen = Boolean(nextValue);
   workerCameraPanel.hidden = !workerCameraOpen;
   workerCameraToggleButton.hidden = workerCameraOpen;
+  document.body.classList.toggle("has-mobile-camera-modal", workerCameraOpen);
   if (!workerCameraOpen) {
     stopVideoStream(workerVideo);
   }
@@ -1308,7 +1348,7 @@ function renderFacePreview() {
 }
 
 async function sendJson(url, { method, body }) {
-  const response = await fetch(url, {
+  const response = await fetch(apiUrl(url), {
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)
@@ -1480,8 +1520,9 @@ function setTimeViewMode(nextMode) {
 
 function updateMonthExportLinks() {
   const month = encodeURIComponent(monthPicker.value || new Date().toISOString().slice(0, 7));
-  monthlyCsvLink.href = `/api/export.csv?month=${month}`;
-  monthlyPdfLink.href = `/api/report.pdf?month=${month}`;
+  monthlyCsvLink.href = apiUrl(`/api/export.csv?month=${month}`);
+  monthlyPdfLink.href = apiUrl(`/api/report.pdf?month=${month}`);
+  weeklyPdfLink.href = apiUrl(`/api/weekly-report.pdf?month=${month}`);
 }
 
 function groupRowsByDay(rows) {
@@ -1789,6 +1830,20 @@ function rolePresetHours(role) {
   return 182;
 }
 
+function resolveApiBase() {
+  const protocol = String(window.location.protocol || "");
+  const hostname = String(window.location.hostname || "");
+  const isBundledApp = protocol === "capacitor:" || protocol === "file:" || hostname === "localhost";
+  return isBundledApp ? REMOTE_API_BASE : "";
+}
+
+function apiUrl(path) {
+  if (/^https?:\/\//i.test(path)) {
+    return path;
+  }
+  return `${API_BASE}${path}`;
+}
+
 function nowLocalValue() {
   const now = new Date();
   const year = now.getFullYear();
@@ -1836,6 +1891,7 @@ if (sessionStorage.getItem(ADMIN_SESSION_KEY) === "ok") {
 
 window.addEventListener("beforeunload", () => {
   stopVideoStream(workerVideo);
+  stopWatchingTopbarSize();
   if (refreshTimer) {
     clearInterval(refreshTimer);
   }
