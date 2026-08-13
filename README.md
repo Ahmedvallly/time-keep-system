@@ -1,6 +1,6 @@
 # Time Keep System
 
-Attendance tracker with a MongoDB Atlas backend, a Vercel-ready deployment target, and a phone face-scanner flow.
+Attendance tracker with a MongoDB Atlas backend, a Vercel-ready deployment target, a Flutter scan app, and a hosted web admin dashboard.
 
 The server now stores worker, scan, leave, and holiday data in MongoDB. The JSON files in `data/` are only local snapshots for inspection and fallback.
 
@@ -28,7 +28,7 @@ node server.js
 
 Open `http://localhost:3000`.
 
-For a phone-friendly screen, open `http://YOUR-PC-IP:3000/mobile.html` from the same network.
+For the phone admin dashboard, open `http://YOUR-PC-IP:3000/mobile-admin.html` from the same network.
 
 For a hosted setup, deploy this repo to Vercel and use MongoDB Atlas for the shared database.
 
@@ -64,12 +64,12 @@ Set these variables before starting in production:
    - `MONGODB_DB`
 8. Deploy.
 9. After deploy, test `https://YOUR-VERCEL-URL/api/health`
-10. Update `capacitor.config.json` so `server.url` points to `https://YOUR-VERCEL-URL/mobile.html`
-11. Run `npm run android:sync` and rebuild the APK so installed phones load the Vercel-hosted app.
+10. Build the Flutter APK in `flutter_app` with `API_BASE_URL=https://YOUR-VERCEL-URL`
+11. Install that APK on the scanner phone.
 
-The hosted app serves both the desktop web UI and the phone web UI from the same backend.
+The hosted app serves the desktop web UI and the phone admin dashboard from the same backend.
 
-Once the APK is rebuilt with the Vercel URL, every device using that app talks to the same Vercel app and the same MongoDB Atlas database. That is what makes scans, leave edits, and worker data visible across devices.
+Once the APK is rebuilt with the hosted URL, every device using that app talks to the same backend and the same MongoDB Atlas database. That is what makes scans, leave edits, and worker data visible across devices.
 
 ## Excel workflow
 
@@ -85,10 +85,10 @@ You can also use the **Adjust times** section in the app to fix a row manually w
 
 ## Face scan flow
 
-The mobile screen now has two main pages:
+The system now uses one scanner app and one admin dashboard:
 
-- `Workers`: add a worker, open the front camera, capture their face, and save the face profile with the worker record.
-- `Face scan`: keep the front camera open and let workers scan themselves in and out all day.
+- Flutter app: worker scan in and scan out
+- `/mobile-admin.html`: add worker, face setup, reports, leave, holidays, and time editing
 
 When a worker face is recognized:
 
@@ -96,7 +96,7 @@ When a worker face is recognized:
 - the next scan becomes `clock_out`
 - then it alternates again
 
-The mobile face scanner uses browser camera access and loads face-recognition models from a CDN, so the phone needs camera permission and internet access.
+The Flutter scanner uses native camera access. The admin dashboard uses browser camera access for worker setup and needs camera permission and internet access.
 
 ## Fingerprint device options
 
@@ -137,48 +137,16 @@ If you want direct Xero syncing later, the next phase should be:
 
 ## Mobile app note
 
-This repo includes a mobile web screen at `/mobile.html` that uses the same backend API as the desktop screen. That means if a worker scans in or out, you can see it on your phone immediately and edit times from your phone as well.
+This repo now has one Android app path only: [`flutter_app`](./flutter_app).
 
-There is also a debug Android APK wrapper in this repo. For shared data, the important part is that the wrapper loads the hosted `mobile.html` page from your Vercel deployment instead of a local server or the previous Render URL.
+- Use the Flutter APK for scan in and scan out.
+- Use the hosted admin dashboard for worker setup and administration.
+- The old Capacitor Android wrapper and old hosted mobile scanner page have been removed from the active architecture.
 
-## Flutter shell update flow
-
-This repo now includes a Flutter shell source app in [`flutter_app`](./flutter_app) that loads the hosted mobile web screen from the server.
-
-### Why this avoids APK rebuilds for normal changes
-
-If you change:
-
-- `public/mobile.html`
-- `public/face-scan.js`
-- `public/mobile-admin.js`
-- `public/styles.css`
-
-and then redeploy the server, installed phones can pick up the update automatically because the Flutter shell is only displaying the hosted page.
-
-The server exposes `/api/app-shell-config`, which returns:
-
-- the hosted mobile URL
-- a `version` value
-- a refresh interval
-
-When you deploy a new web version, bump `MOBILE_APP_VERSION` in the server environment. The installed Flutter shell polls that endpoint and reloads the hosted page when the version changes.
-
-### What still needs a new APK
-
-You still need to rebuild the APK if you change:
-
-- Flutter code in `flutter_app/lib`
-- Android permissions or native plugins
-- the compile-time `API_BASE_URL`
-
-### Flutter build steps
-
-Flutter is not installed in this local environment, so the Android project was not generated here. After installing Flutter:
+## Flutter build steps
 
 ```powershell
 cd flutter_app
-flutter create . --platforms=android
 flutter pub get
 flutter build apk --dart-define=API_BASE_URL=https://YOUR-HOSTED-DOMAIN
 ```

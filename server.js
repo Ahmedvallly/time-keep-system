@@ -20,7 +20,6 @@ const EMPLOYEE_ROLES = {
   driver: { label: "Driver", monthlyTargetHours: 210 },
   admin: { label: "Admin", monthlyTargetHours: 176 }
 };
-const MOBILE_APP_VERSION = process.env.MOBILE_APP_VERSION || "2026.08.13.01";
 let readyPromise;
 
 ensureDataFiles();
@@ -44,10 +43,6 @@ async function requestListener(req, res) {
         database: "mongodb",
         timestamp: new Date().toISOString()
       });
-    }
-
-    if (req.method === "GET" && url.pathname === "/api/app-shell-config") {
-      return sendJson(res, 200, buildAppShellConfig(req));
     }
 
     if (req.method === "GET" && url.pathname === "/api/employees") {
@@ -298,54 +293,6 @@ function contentType(filePath) {
     default:
       return "application/octet-stream";
   }
-}
-
-function buildAppShellConfig(req) {
-  const requestProtocol = resolveExternalProtocol(req);
-  const requestUrl = new URL(req.url, `${requestProtocol}://${req.headers.host}`);
-  const configuredBaseUrl = (process.env.PUBLIC_BASE_URL || "").trim().replace(/\/+$/, "");
-  const baseUrl = configuredBaseUrl || `${requestUrl.protocol}//${req.headers.host}`;
-  const mobilePath = (process.env.MOBILE_WEB_PATH || "/mobile.html").trim();
-  const mobileUrl = mobilePath.startsWith("http://") || mobilePath.startsWith("https://")
-    ? mobilePath
-    : `${baseUrl}${mobilePath.startsWith("/") ? mobilePath : `/${mobilePath}`}`;
-  const cacheBustedMobileUrl = appendVersionQuery(mobileUrl, MOBILE_APP_VERSION);
-
-  return {
-    appName: "Time Keep Mobile",
-    version: MOBILE_APP_VERSION,
-    mobileUrl: cacheBustedMobileUrl,
-    refreshIntervalMs: 300000,
-    timestamp: new Date().toISOString()
-  };
-}
-
-function appendVersionQuery(url, version) {
-  const parsed = new URL(url);
-  parsed.searchParams.set("v", version);
-  return parsed.toString();
-}
-
-function resolveExternalProtocol(req) {
-  const forwardedProtoHeader = String(req.headers["x-forwarded-proto"] || "")
-    .split(",")[0]
-    .trim()
-    .toLowerCase();
-
-  if (forwardedProtoHeader === "http" || forwardedProtoHeader === "https") {
-    return forwardedProtoHeader;
-  }
-
-  const host = String(req.headers.host || "").split(":")[0].toLowerCase();
-  if (
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host === "::1"
-  ) {
-    return "http";
-  }
-
-  return "https";
 }
 
 function setCorsHeaders(res) {

@@ -27,9 +27,9 @@
         <header class="mobile-topbar mobile-shell">
           <div class="mobile-topbar-body">
             <div class="mobile-topbar-intro">
-              <span class="mobile-eyebrow">Yabil workforce</span>
-              <h1>Control center</h1>
-              <p>Manage workers, time, leave, and reports from one phone-friendly dashboard.</p>
+              <span class="mobile-eyebrow">Operations</span>
+              <h1>Workforce dashboard</h1>
+              <p>Review attendance, fix time rows, manage leave, and keep the month under control.</p>
             </div>
             <div class="mobile-toolbar mobile-toolbar-panel">
               <label class="month-label" for="mobileMonthPicker">Month</label>
@@ -44,7 +44,7 @@
           <section class="mobile-panel" data-tab-panel="home">
             <section class="card mobile-card mobile-shell mobile-feature-card">
               <div class="card-head mobile-card-head">
-                <h2>Dashboard</h2>
+                <h2>Overview</h2>
                 <p>See who is in, today’s totals, weekly totals, monthly totals, and what needs attention first.</p>
               </div>
               <div id="mobileQuickActions" class="mobile-action-grid"></div>
@@ -52,14 +52,14 @@
               <div class="mobile-home-grid">
                 <section class="mobile-home-section">
                   <div class="mobile-section-head">
-                    <h3>Issues</h3>
-                    <span class="mobile-section-note">Problem rows only</span>
+                    <h3>Alerts</h3>
+                    <span class="mobile-section-note">Only items needing action</span>
                   </div>
                   <div id="mobileIssueList" class="mobile-list"></div>
                 </section>
                 <section class="mobile-home-section">
                   <div class="mobile-section-head">
-                    <h3>Today</h3>
+                    <h3>Live team</h3>
                     <span class="mobile-section-note">Current worker status</span>
                   </div>
                   <div id="mobileTodayWorkers" class="mobile-list"></div>
@@ -71,45 +71,15 @@
           <section class="mobile-panel" data-tab-panel="workers">
             <section class="card mobile-card mobile-shell">
               <div class="card-head mobile-card-head">
-                <h2>Add worker with face</h2>
-                <p>Capture one front selfie before saving the worker.</p>
+                <h2>Team roster</h2>
+                <p>Worker creation and face enrollment now live in the app Worker setup screen. This page stays focused on operations.</p>
               </div>
-              <button class="button secondary" id="mobileWorkerCameraToggleButton" type="button">Add photo</button>
-              <div class="mobile-worker-camera-panel" id="mobileWorkerCameraPanel" hidden>
-                <div class="mobile-camera-shell mobile-camera-shell-compact">
-                  <video id="mobileWorkerVideo" class="mobile-camera-video" autoplay muted playsinline></video>
-                  <div class="mobile-camera-overlay">
-                    <div class="mobile-camera-target"></div>
-                  </div>
-                </div>
-                <div class="mobile-worker-camera-actions mobile-worker-camera-actions-legacy">
-                  <button class="button secondary" id="mobileCaptureFaceButton" type="button">Capture face</button>
-                  <button class="button secondary" id="mobileWorkerCameraCloseButton" type="button">Close photo</button>
-                </div>
+              <div class="mobile-dashboard-note">
+                <strong>Worker setup moved</strong>
+                <p>Add workers and enroll faces from the app. Use this roster for review and deletion only.</p>
               </div>
-              <canvas id="mobileWorkerCanvas" hidden></canvas>
-              <form id="mobileWorkerForm" class="stack-form">
-                <input name="name" id="mobileWorkerName" placeholder="Worker name" required>
-                <input name="code" id="mobileWorkerCode" placeholder="Employee code" required>
-                <select name="role" id="mobileWorkerRole" required>
-                  <option value="general">General</option>
-                  <option value="driver">Driver</option>
-                  <option value="admin">Admin</option>
-                </select>
-                <input name="monthlyTargetHours" id="mobileWorkerTargetHours" type="number" min="0" step="0.25" value="182" placeholder="Hours worked target" required>
-                <div id="mobileFacePreview" class="mobile-face-preview mobile-empty">No face captured yet.</div>
-                <textarea name="notes" id="mobileWorkerNotes" rows="3" placeholder="Notes"></textarea>
-                <button class="button" type="submit">Save worker</button>
-                <p id="mobileWorkerMessage" class="message"></p>
-                <button class="button secondary small-button" id="mobileUndoWorkerDeleteButton" type="button" hidden>Undo deleted worker</button>
-              </form>
-            </section>
-
-            <section class="card mobile-card mobile-shell">
-              <div class="card-head mobile-card-head">
-                <h2>Saved workers</h2>
-                <p>Fast table view with status, target hours, face setup, and quick actions.</p>
-              </div>
+              <p id="mobileWorkerMessage" class="message"></p>
+              <button class="button secondary small-button" id="mobileUndoWorkerDeleteButton" type="button" hidden>Undo deleted worker</button>
               <div id="mobileWorkers" class="mobile-list"></div>
             </section>
 
@@ -118,8 +88,8 @@
           <section class="mobile-panel" data-tab-panel="times">
             <section class="card mobile-card mobile-shell">
               <div class="card-head mobile-card-head">
-                <h2>Add or fix time</h2>
-                <p>Create one manual row without leaving the phone.</p>
+                <h2>Manual time entry</h2>
+                <p>Create one manual row when a scan was missed.</p>
               </div>
               <form id="mobileManualForm" class="stack-form">
                 <select name="employeeCode" id="mobileEmployeeCode" required>
@@ -137,8 +107,8 @@
 
             <section class="card mobile-card mobile-shell">
               <div class="card-head mobile-card-head">
-                <h2>Edit time rows</h2>
-                <p>Filter by worker, then open only the day you want to fix.</p>
+                <h2>Time review</h2>
+                <p>Filter by worker, then open the exact day you want to fix.</p>
               </div>
               <div class="mobile-times-toolbar">
                 <div class="mobile-quicknav mobile-times-mode-nav" aria-label="Time summary modes">
@@ -189,8 +159,8 @@
 
             <section class="card mobile-card mobile-shell">
               <div class="card-head mobile-card-head">
-                <h2>Manage leave</h2>
-                <p>Add, edit, or delete leave records.</p>
+                <h2>Leave records</h2>
+                <p>Add, edit, or remove leave records.</p>
               </div>
               <form id="mobileLeaveForm" class="stack-form">
                 <select name="employeeCode" id="mobileLeaveEmployeeCode" required>
@@ -216,7 +186,7 @@
             <section class="card mobile-card mobile-shell">
               <div class="card-head mobile-card-head">
                 <h2>Public holidays</h2>
-                <p>Keep the holiday list up to date.</p>
+                <p>Maintain the holiday list used by time and leave calculations.</p>
               </div>
               <form id="mobileHolidayForm" class="stack-form">
                 <input name="date" id="mobileHolidayDate" type="date" required>
@@ -230,16 +200,14 @@
         </section>
 
         <nav class="mobile-bottom-nav" aria-label="Bottom navigation">
-          <button type="button" class="mobile-bottom-tab" data-tab="home">Home</button>
+          <button type="button" class="mobile-bottom-tab" data-tab="home">Overview</button>
           <button type="button" class="mobile-bottom-tab" data-tab="times">Times</button>
-          <button type="button" class="mobile-bottom-tab" data-tab="workers">Workers</button>
+          <button type="button" class="mobile-bottom-tab" data-tab="workers">Team</button>
           <button type="button" class="mobile-bottom-tab" data-tab="leave">Leave</button>
           <button type="button" class="mobile-bottom-tab" data-tab="holidays">More</button>
         </nav>
       </section>
     </main>
-
-    <script src="/vendor/face-api.min.js?v=2026.08.13.01"></script>
     <script src="/mobile-admin.js?v=2026.08.13.01"></script>
   </body>
 </html>

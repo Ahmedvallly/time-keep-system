@@ -5,21 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Time Keep System</title>
     <link rel="stylesheet" href="/styles.css">
-    <script>
-      (function redirectBundledAppToScanner() {
-        var protocol = String(window.location.protocol || "");
-        var hostname = String(window.location.hostname || "");
-        var isBundledApp = protocol === "capacitor:" || protocol === "file:" || hostname === "localhost";
-        if (!isBundledApp) {
-          return;
-        }
-        var target = "/mobile.html?v=2026.08.11.03";
-        if (window.location.pathname.endsWith("/mobile.html")) {
-          return;
-        }
-        window.location.replace(target);
-      })();
-    </script>
   </head>
   <body>
     <main class="layout">
@@ -40,8 +25,7 @@
           <a class="button secondary" id="reportPdfLink" href="/api/report.pdf">Download month PDF</a>
           <a class="button secondary" id="weeklyPdfLink" href="/api/weekly-report.pdf">Download weekly PDF</a>
           <a class="button secondary" href="/api/export-live.csv">Download live Excel sheet</a>
-          <a class="button secondary" href="/mobile.html">Open scanner page</a>
-          <a class="button secondary" href="/mobile-admin.html">Open admin mobile page</a>
+          <a class="button secondary" href="/mobile-admin.html">Open phone admin dashboard</a>
           <p class="sync-note">
             Every new scan also updates <strong>data/attendance-live-times.csv</strong> automatically.
             Open that file in Excel, adjust it there, then import the saved CSV back below when needed.

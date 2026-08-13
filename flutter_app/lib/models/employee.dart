@@ -25,7 +25,7 @@ class Employee {
       faceDescriptor.isNotEmpty && notes.contains(nativeFaceMarker);
   bool get hasLegacyFaceProfile =>
       faceDescriptor.length == 128 && !notes.contains(nativeFaceMarker);
-  bool get hasAnyFaceProfile => faceDescriptor.length == 128;
+  bool get hasAnyFaceProfile => hasNativeFaceProfile;
 
   String get notesWithNativeFaceMarker {
     if (notes.contains(nativeFaceMarker)) {

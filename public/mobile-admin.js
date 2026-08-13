@@ -1,11 +1,7 @@
 const EVENT_TYPES = ["clock_in", "clock_out"];
-const TINY_FACE_MODEL_URL = "/models/tiny_face_detector";
-const FACE_LANDMARK_MODEL_URL = "/models/face_landmark_68_tiny";
-const FACE_RECOGNITION_MODEL_URL = "/models/face_recognition";
 const ADMIN_USERNAME = "a";
 const ADMIN_PASSWORD = "a";
 const ADMIN_SESSION_KEY = "time-keep-mobile-admin-auth";
-const REMOTE_API_BASE = "https://time-keep-system.onrender.com";
 
 const authShell = document.getElementById("mobileAdminAuthShell");
 const adminApp = document.getElementById("mobileAdminApp");
@@ -18,19 +14,7 @@ const quickActionsNode = document.getElementById("mobileQuickActions");
 const homeTotalsNode = document.getElementById("mobileHomeTotals");
 const issueListNode = document.getElementById("mobileIssueList");
 const todayWorkersNode = document.getElementById("mobileTodayWorkers");
-const workerCameraPanel = document.getElementById("mobileWorkerCameraPanel");
-const workerCameraToggleButton = document.getElementById("mobileWorkerCameraToggleButton");
-const workerCameraCloseButton = document.getElementById("mobileWorkerCameraCloseButton");
-const workerVideo = document.getElementById("mobileWorkerVideo");
-const workerCanvas = document.getElementById("mobileWorkerCanvas");
-const workerForm = document.getElementById("mobileWorkerForm");
 const workerMessage = document.getElementById("mobileWorkerMessage");
-const captureFaceButton = document.getElementById("mobileCaptureFaceButton");
-const facePreview = document.getElementById("mobileFacePreview");
-const workerRoleInput = document.getElementById("mobileWorkerRole");
-const workerTargetHoursInput = document.getElementById("mobileWorkerTargetHours");
-const workerNameInput = document.getElementById("mobileWorkerName");
-const workerCodeInput = document.getElementById("mobileWorkerCode");
 const undoWorkerDeleteButton = document.getElementById("mobileUndoWorkerDeleteButton");
 const workersNode = document.getElementById("mobileWorkers");
 const manualForm = document.getElementById("mobileManualForm");
@@ -72,16 +56,9 @@ let employees = [];
 let refreshTimer = null;
 let editingLeaveId = null;
 let activeTab = "home";
-let faceModelsReady = false;
-let faceModelsLoading = null;
-let capturedFaceDescriptor = [];
-let capturedFacePreviewUrl = "";
-let capturedFacePhotoDataUrl = "";
 let latestTimeRows = [];
 let latestHolidayRows = [];
 let latestDashboardWorkers = [];
-let workerCameraOpen = false;
-let lastFaceCaptureError = "";
 let openTimeWorkerKeys = new Set();
 let openTimeDayKeys = new Set();
 let timeViewMode = "today";
@@ -96,8 +73,6 @@ timestampInput.value = nowLocalValue();
 leaveStartDate.value = todayDateValue();
 leaveEndDate.value = todayDateValue();
 holidayDate.value = todayDateValue();
-workerRoleInput.value = "general";
-workerTargetHoursInput.value = String(rolePresetHours(workerRoleInput.value));
 
 lockAdmin();
 syncTopbarOffset();
@@ -120,14 +95,6 @@ loginForm.addEventListener("submit", async (event) => {
   loginForm.reset();
   await unlockAdmin();
 });
-
-workerCameraToggleButton.addEventListener("click", () => {
-  setWorkerCameraOpen(true);
-  ensureWorkerCamera().catch((error) => {
-    setMessage(workerMessage, error.message, true);
-  });
-});
-workerCameraCloseButton.addEventListener("click", () => setWorkerCameraOpen(false));
 
 for (const button of tabButtons) {
   button.addEventListener("click", () => {
@@ -152,10 +119,6 @@ timesStatusFilter.addEventListener("change", () => {
 });
 timesIssuesOnly.addEventListener("change", () => {
   renderTimes(latestTimeRows);
-});
-
-workerRoleInput.addEventListener("change", () => {
-  workerTargetHoursInput.value = String(rolePresetHours(workerRoleInput.value));
 });
 
 for (const button of timeViewButtons) {
@@ -210,93 +173,6 @@ undoTimeDeleteButton.addEventListener("click", async () => {
     await refreshAll();
   } catch (error) {
     setMessage(timeDeleteMessage, error.message, true);
-  }
-});
-
-captureFaceButton.addEventListener("click", async () => {
-  captureFaceButton.disabled = true;
-  setMessage(workerMessage, "Capturing photo...");
-
-  try {
-    if (!workerCameraOpen) {
-      setWorkerCameraOpen(true);
-      await pause(120);
-    }
-    await ensureWorkerCamera();
-    const capture = await captureWorkerFace(workerVideo, workerCanvas);
-    capturedFacePreviewUrl = capture.previewUrl;
-    capturedFacePhotoDataUrl = capture.previewUrl;
-    capturedFaceDescriptor = Array.isArray(capture.descriptor) ? capture.descriptor : [];
-    lastFaceCaptureError = capture.error || "";
-    renderFacePreview();
-    setWorkerCameraOpen(false);
-    workerNameInput.focus();
-    workerNameInput.scrollIntoView({ behavior: "smooth", block: "center" });
-    if (capturedFaceDescriptor.length === 128) {
-      setMessage(workerMessage, "Photo captured. Face profile ready. Now add worker name, employee code, hours, and save.");
-    } else {
-      setMessage(workerMessage, lastFaceCaptureError || "Photo captured. You can save this worker now, and the face profile can be updated after retaking a clearer photo if needed.");
-    }
-  } catch (error) {
-    setMessage(workerMessage, error.message, true);
-  } finally {
-    captureFaceButton.disabled = false;
-  }
-});
-
-workerForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const formData = new FormData(workerForm);
-
-  setMessage(workerMessage, "Saving worker...");
-
-  try {
-    if (!capturedFacePhotoDataUrl) {
-      setMessage(workerMessage, "Capture the worker face before saving.", true);
-      return;
-    }
-
-    if (capturedFaceDescriptor.length !== 128) {
-      capturedFaceDescriptor = await buildFaceDescriptorFromPhoto(capturedFacePhotoDataUrl);
-      lastFaceCaptureError = capturedFaceDescriptor.length === 128
-        ? ""
-        : (lastFaceCaptureError || "The photo saved, but the face profile still could not be created from it.");
-      renderFacePreview();
-    }
-
-    const savedWithFaceProfile = capturedFaceDescriptor.length === 128;
-
-    const employee = await sendJson("/api/employees", {
-      method: "POST",
-      body: {
-        name: formData.get("name"),
-        code: formData.get("code"),
-        role: formData.get("role"),
-        monthlyTargetHours: Number(formData.get("monthlyTargetHours")),
-        notes: formData.get("notes"),
-        faceDescriptor: capturedFaceDescriptor,
-        facePhotoDataUrl: capturedFacePhotoDataUrl
-      }
-    });
-
-    workerForm.reset();
-    workerRoleInput.value = "general";
-    workerTargetHoursInput.value = String(rolePresetHours("general"));
-    workerCodeInput.value = "";
-    capturedFaceDescriptor = [];
-    capturedFacePreviewUrl = "";
-    capturedFacePhotoDataUrl = "";
-    lastFaceCaptureError = "";
-    renderFacePreview();
-    setMessage(
-      workerMessage,
-      savedWithFaceProfile
-        ? `Saved ${employee.name} with a face profile.`
-        : `Saved ${employee.name} with the captured photo. Retake the worker photo later to finish the face profile if needed.`
-    );
-    await refreshAll();
-  } catch (error) {
-    setMessage(workerMessage, error.message, true);
   }
 });
 
@@ -393,16 +269,14 @@ async function unlockAdmin() {
   adminApp.setAttribute("aria-hidden", "false");
   watchTopbarSize();
   syncTopbarOffset();
-  setWorkerCameraOpen(false);
   renderTimeViewButtons();
   renderTimeEditModeButton();
   updateMonthExportLinks();
   await refreshAll();
   setActiveTab(activeTab);
-  renderFacePreview();
   if (!refreshTimer) {
     refreshTimer = setInterval(() => {
-      if ((timeEditModeEnabled && activeTab === "times") || workerCameraOpen) {
+      if (timeEditModeEnabled && activeTab === "times") {
         return;
       }
       refreshAll().catch(() => {});
@@ -411,12 +285,10 @@ async function unlockAdmin() {
 }
 
 function lockAdmin() {
-  stopVideoStream(workerVideo);
   if (refreshTimer) {
     clearInterval(refreshTimer);
     refreshTimer = null;
   }
-  setWorkerCameraOpen(false);
   authShell.hidden = false;
   authShell.style.display = "";
   adminApp.hidden = true;
@@ -478,18 +350,12 @@ function renderSummary(workers) {
   const workingCount = workers.filter((worker) => worker.status === "Working").length;
   const finishedCount = workers.filter((worker) => worker.status === "Finished").length;
   const absentCount = workers.filter((worker) => Number(worker.absentDays || 0) > 0).length;
-  const readyFaces = workers.filter((worker) => {
-    const employee = employees.find((entry) => entry.code === worker.code);
-    return employee && Array.isArray(employee.faceDescriptor) && employee.faceDescriptor.length === 128;
-  }).length;
 
   summaryNode.innerHTML = [
     summaryCard("Working", String(workingCount), "Currently in"),
-    summaryCard("Finished", String(finishedCount), "Clocked out"),
-    summaryCard("Workers", String(workers.length), "Total staff"),
-    summaryCard("Faces ready", String(readyFaces), "Can scan"),
-    summaryCard("Absences", String(absentCount), "This month"),
-    summaryCard("Admin", "Unlocked", "Protected page")
+    summaryCard("Out", String(finishedCount), "Clocked out"),
+    summaryCard("Workers", String(workers.length), "Active roster"),
+    summaryCard("Absences", String(absentCount), "This month")
   ].join("");
 }
 
@@ -500,10 +366,10 @@ function renderHomeDashboard() {
   const todayRows = [...summaries].sort(compareSummaryPriority);
 
   quickActionsNode.innerHTML = [
-    quickActionButton("Add worker", "workers"),
-    quickActionButton("Fix times", "times"),
+    quickActionButton("Review times", "times"),
+    quickActionButton("Team roster", "workers"),
     quickActionButton("Leave", "leave"),
-    quickActionButton("Print month", "times")
+    quickActionButton("Holidays", "holidays")
   ].join("");
 
   for (const button of quickActionsNode.querySelectorAll("[data-tab-target]")) {
@@ -513,12 +379,12 @@ function renderHomeDashboard() {
   }
 
   homeTotalsNode.innerHTML = [
-    summaryCard("Worked today", formatHours(totals.todayWorkedHours), "All workers"),
-    summaryCard("Today +/-", formatSignedHours(totals.todayBalanceHours), totals.todayBalanceHours >= 0 ? "Over target" : "Under target"),
-    summaryCard("Worked week", formatHours(totals.weekWorkedHours), "This week"),
-    summaryCard("Week +/-", formatSignedHours(totals.weekBalanceHours), totals.weekBalanceHours >= 0 ? "Over target" : "Under target"),
-    summaryCard("Worked month", formatHours(totals.monthWorkedHours), "This month"),
-    summaryCard("Month +/-", formatSignedHours(totals.monthBalanceHours), totals.monthBalanceHours >= 0 ? "Over target" : "Under target")
+    summaryCard("Today worked", formatHours(totals.todayWorkedHours), "Across the team"),
+    summaryCard("Today balance", formatSignedHours(totals.todayBalanceHours), totals.todayBalanceHours >= 0 ? "Over target" : "Under target"),
+    summaryCard("Week worked", formatHours(totals.weekWorkedHours), "Current week"),
+    summaryCard("Week balance", formatSignedHours(totals.weekBalanceHours), totals.weekBalanceHours >= 0 ? "Over target" : "Under target"),
+    summaryCard("Month worked", formatHours(totals.monthWorkedHours), "Current month"),
+    summaryCard("Month balance", formatSignedHours(totals.monthBalanceHours), totals.monthBalanceHours >= 0 ? "Over target" : "Under target")
   ].join("");
 
   if (issues.length === 0) {
@@ -623,15 +489,7 @@ function renderWorkers() {
   const summaries = getAllTimeSummaries();
   const summaryByCode = new Map(summaries.map((summary) => [summary.employeeCode, summary]));
   workersNode.innerHTML = `
-    <div class="mobile-worker-table">
-      <div class="mobile-worker-table-head">
-        <span>Name</span>
-        <span>Role</span>
-        <span>Status</span>
-        <span>Month target</span>
-        <span>Face</span>
-        <span>Actions</span>
-      </div>
+    <div class="mobile-worker-table mobile-roster-grid">
       <div class="mobile-worker-table-body"></div>
     </div>
   `;
@@ -639,22 +497,21 @@ function renderWorkers() {
 
   for (const employee of employees) {
     const summary = summaryByCode.get(employee.code) || null;
-    const hasFace = Array.isArray(employee.faceDescriptor) && employee.faceDescriptor.length === 128;
-    const hasPhoto = Boolean(employee.facePhotoDataUrl);
     const article = document.createElement("article");
     article.className = `mobile-worker-row ${summary ? summary.statusClass : ""}`;
     article.innerHTML = `
-      <span class="mobile-worker-primary">
+      <div class="mobile-worker-primary">
         <strong>${escapeHtml(employee.name)}</strong>
         <small>${escapeHtml(employee.code)}</small>
-      </span>
-      <span>${escapeHtml(formatWorkerRole(employee.role))}</span>
-      <span class="mobile-badge">${escapeHtml(summary ? summary.todayStatus : "No scan")}</span>
-      <span>${escapeHtml(formatHours(employee.monthlyTargetHours || 0))}</span>
-      <span>${escapeHtml(hasFace ? "Ready" : hasPhoto ? "Photo only" : "Missing")}</span>
-      <span class="mobile-edit-actions">
+      </div>
+      <div class="mobile-roster-meta">
+        <span class="mobile-badge">${escapeHtml(summary ? summary.todayStatus : "No scan")}</span>
+        <span>${escapeHtml(formatWorkerRole(employee.role))}</span>
+        <span>${escapeHtml(formatHours(employee.monthlyTargetHours || 0))}</span>
+      </div>
+      <div class="mobile-edit-actions">
         <button class="button secondary small-button" type="button" data-action="delete">Delete worker</button>
-      </span>
+      </div>
     `;
 
     article.querySelector('[data-action="delete"]').addEventListener("click", async () => {
@@ -1209,16 +1066,6 @@ function setActiveTab(tabName) {
     panel.hidden = !isActive;
   }
 
-  if (tabName === "workers") {
-    if (workerCameraOpen) {
-      ensureWorkerCamera().catch((error) => {
-        setMessage(workerMessage, error.message, true);
-      });
-    }
-  } else {
-    stopVideoStream(workerVideo);
-  }
-
   syncTopbarOffset();
 }
 
@@ -1248,205 +1095,6 @@ function stopWatchingTopbarSize() {
   topbarResizeObserver = null;
 }
 
-function setWorkerCameraOpen(nextValue) {
-  workerCameraOpen = Boolean(nextValue);
-  workerCameraPanel.hidden = !workerCameraOpen;
-  workerCameraToggleButton.hidden = workerCameraOpen;
-  document.body.classList.toggle("has-mobile-camera-modal", workerCameraOpen);
-  if (!workerCameraOpen) {
-    stopVideoStream(workerVideo);
-  }
-}
-
-async function ensureWorkerCamera() {
-  if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
-    throw new Error("This device cannot open the camera here. Use Chrome on the phone and allow camera access.");
-  }
-  await startVideoStream(workerVideo);
-  await waitForVideoReady(workerVideo);
-  await pause(250);
-}
-
-async function startVideoStream(video) {
-  if (video.srcObject) {
-    return;
-  }
-
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: false,
-    video: {
-      facingMode: "user",
-      width: { ideal: 720 },
-      height: { ideal: 1280 }
-    }
-  });
-
-  video.autoplay = true;
-  video.muted = true;
-  video.playsInline = true;
-  video.srcObject = stream;
-  await video.play();
-  await waitForVideoReady(video);
-}
-
-function stopVideoStream(video) {
-  const stream = video.srcObject;
-  if (!stream) {
-    return;
-  }
-
-  for (const track of stream.getTracks()) {
-    track.stop();
-  }
-
-  video.srcObject = null;
-}
-
-async function ensureFaceModels() {
-  if (faceModelsReady) {
-    return;
-  }
-
-  if (!faceModelsLoading) {
-    setMessage(workerMessage, "Loading face detection...");
-    faceModelsLoading = withTimeout(Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri(TINY_FACE_MODEL_URL),
-      faceapi.nets.faceLandmark68TinyNet.loadFromUri(FACE_LANDMARK_MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(FACE_RECOGNITION_MODEL_URL)
-    ]), 12000, "Face detection took too long to load.").then(() => {
-      faceModelsReady = true;
-    }).catch((error) => {
-      faceModelsLoading = null;
-      const reason = error && error.message ? error.message : "Face models could not be loaded.";
-      throw new Error(`${reason} Check internet access on the phone and try again.`);
-    });
-  }
-
-  return faceModelsLoading;
-}
-
-async function captureWorkerFace(video, canvas) {
-  return withTimeout((async () => {
-    await waitForVideoReady(video);
-    await pause(180);
-    captureVideoFrame(video, canvas);
-    const previewUrl = canvas.toDataURL("image/jpeg", 0.9);
-    await ensureFaceModels();
-
-    let descriptor = [];
-    let error = "";
-
-    try {
-      const liveDetection = await tryDetectFaceDescriptor(video);
-      if (liveDetection?.descriptor?.descriptor) {
-        descriptor = Array.from(liveDetection.descriptor.descriptor);
-      } else {
-        const imageDetection = await tryDetectFaceDescriptor(canvas);
-        if (imageDetection?.descriptor?.descriptor) {
-          descriptor = Array.from(imageDetection.descriptor.descriptor);
-        }
-      }
-    } catch (captureError) {
-      error = captureError && captureError.message ? captureError.message : "Face profile could not be created from this photo.";
-    }
-
-    if (!descriptor.length && !error) {
-      error = "Face detected poorly or not at all. Keep one face centered in the frame, move closer, and try again.";
-    }
-
-    return { descriptor, previewUrl, error };
-  })(), 10000, "Capture timed out. Keep one face centered and try again.");
-}
-
-async function buildFaceDescriptorFromPhoto(dataUrl) {
-  await ensureFaceModels();
-
-  const image = await loadImageFromDataUrl(dataUrl);
-  const detection = await tryDetectFaceDescriptor(image);
-  if (detection?.descriptor?.descriptor) {
-    return Array.from(detection.descriptor.descriptor);
-  }
-
-  return [];
-}
-
-async function tryDetectFaceDescriptor(source) {
-  const options = [
-    { inputSize: 320, scoreThreshold: 0.35 },
-    { inputSize: 224, scoreThreshold: 0.4 },
-    { inputSize: 160, scoreThreshold: 0.3 }
-  ];
-
-  for (const option of options) {
-    const detection = await faceapi
-      .detectSingleFace(source, new faceapi.TinyFaceDetectorOptions(option))
-      .withFaceLandmarks(true)
-      .withFaceDescriptor();
-
-    if (detection) {
-      return detection;
-    }
-  }
-
-  return null;
-}
-
-function captureVideoFrame(video, canvas) {
-  const width = video.videoWidth || 480;
-  const height = video.videoHeight || 640;
-  canvas.width = width;
-  canvas.height = height;
-  const context = canvas.getContext("2d");
-  context.drawImage(video, 0, 0, width, height);
-}
-
-function pause(ms) {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms);
-  });
-}
-
-function loadImageFromDataUrl(dataUrl) {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("The captured photo could not be read."));
-    image.src = dataUrl;
-  });
-}
-
-function withTimeout(promise, ms, message) {
-  return new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      reject(new Error(message));
-    }, ms);
-
-    promise
-      .then((value) => {
-        clearTimeout(timeoutId);
-        resolve(value);
-      })
-      .catch((error) => {
-        clearTimeout(timeoutId);
-        reject(error);
-      });
-  });
-}
-
-function renderFacePreview() {
-  if (!capturedFacePreviewUrl) {
-    facePreview.className = "mobile-face-preview mobile-empty";
-    facePreview.textContent = "No face captured yet.";
-    return;
-  }
-
-  facePreview.className = "mobile-face-preview";
-  facePreview.innerHTML = `
-    <img src="${capturedFacePreviewUrl}" alt="Captured worker face">
-    <p>${capturedFaceDescriptor.length === 128 ? "Photo captured and ready to save." : escapeHtml(lastFaceCaptureError || "Photo captured. Retake it if the face profile was not created.")}</p>
-  `;
-}
-
 async function sendJson(url, { method, body }) {
   const response = await fetch(apiUrl(url), {
     method,
@@ -1458,28 +1106,6 @@ async function sendJson(url, { method, body }) {
     throw new Error(data.error || "Request failed.");
   }
   return data;
-}
-
-async function waitForVideoReady(video) {
-  if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
-    return;
-  }
-
-  await new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      video.removeEventListener("loadeddata", onReady);
-      video.removeEventListener("canplay", onReady);
-      reject(new Error("Camera opened but no video frame arrived. Close the photo panel, allow camera permission, and try again."));
-    }, 6000);
-    const onReady = () => {
-      clearTimeout(timeoutId);
-      video.removeEventListener("loadeddata", onReady);
-      video.removeEventListener("canplay", onReady);
-      resolve();
-    };
-    video.addEventListener("loadeddata", onReady);
-    video.addEventListener("canplay", onReady);
-  });
 }
 
 function setMessage(node, text, isError = false) {
@@ -1686,14 +1312,9 @@ function deriveTodayStatus(rows) {
 function detectSummaryIssues(worker, todaySummary, currentWeek, monthSummary) {
   const issues = [];
   const rows = Array.isArray(todaySummary.rows) ? todaySummary.rows : [];
-  const hasFace = Array.isArray(worker.faceDescriptor) && worker.faceDescriptor.length === 128;
   const orderedRows = [...rows].sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp));
   const hasClockIn = orderedRows.some((row) => row.type === "clock_in");
   const hasClockOut = orderedRows.some((row) => row.type === "clock_out");
-
-  if (!hasFace) {
-    issues.push("Face missing");
-  }
 
   if (orderedRows.length > 0 && hasClockIn && !hasClockOut) {
     issues.push("Missing clock out");
@@ -1937,10 +1558,7 @@ function rolePresetHours(role) {
 }
 
 function resolveApiBase() {
-  const protocol = String(window.location.protocol || "");
-  const hostname = String(window.location.hostname || "");
-  const isBundledApp = protocol === "capacitor:" || protocol === "file:" || hostname === "localhost";
-  return isBundledApp ? REMOTE_API_BASE : "";
+  return "";
 }
 
 function apiUrl(path) {
@@ -1996,7 +1614,6 @@ if (sessionStorage.getItem(ADMIN_SESSION_KEY) === "ok") {
 }
 
 window.addEventListener("beforeunload", () => {
-  stopVideoStream(workerVideo);
   stopWatchingTopbarSize();
   if (refreshTimer) {
     clearInterval(refreshTimer);

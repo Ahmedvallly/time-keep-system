@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:webview_flutter/webview_flutter.dart';
-import 'package:webview_flutter_android/webview_flutter_android.dart';
 
-import '../config.dart';
+import 'admin_dashboard_screen.dart';
+import 'worker_setup_screen.dart';
 
 class AdminScreen extends StatefulWidget {
   const AdminScreen({super.key, required this.onClose});
@@ -14,53 +13,17 @@ class AdminScreen extends StatefulWidget {
 }
 
 class _AdminScreenState extends State<AdminScreen> {
-  late final WebViewController _controller;
-  bool _loading = true;
-  double _progress = 0;
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _authenticated = false;
+  String? _message;
+  bool _messageIsError = false;
 
   @override
-  void initState() {
-    super.initState();
-    const params = PlatformWebViewControllerCreationParams();
-    final controller = WebViewController.fromPlatformCreationParams(params)
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(const Color(0xFF0F1116))
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (_) {
-            if (!mounted) {
-              return;
-            }
-            setState(() {
-              _loading = true;
-            });
-          },
-          onProgress: (progress) {
-            if (!mounted) {
-              return;
-            }
-            setState(() {
-              _progress = progress / 100;
-            });
-          },
-          onPageFinished: (_) {
-            if (!mounted) {
-              return;
-            }
-            setState(() {
-              _loading = false;
-              _progress = 1;
-            });
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse(defaultAdminUrl));
-    if (controller.platform is AndroidWebViewController) {
-      AndroidWebViewController.enableDebugging(false);
-      (controller.platform as AndroidWebViewController)
-          .setMediaPlaybackRequiresUserGesture(false);
-    }
-    _controller = controller;
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
   }
 
   @override
@@ -75,26 +38,104 @@ class _AdminScreenState extends State<AdminScreen> {
           onPressed: widget.onClose,
           icon: const Icon(Icons.arrow_back),
         ),
-        actions: [
-          IconButton(
-            onPressed: _controller.reload,
-            icon: const Icon(Icons.refresh),
+      ),
+      body: _authenticated ? _buildMenu(context) : _buildLogin(),
+    );
+  }
+
+  Widget _buildLogin() {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _usernameController,
+                decoration: const InputDecoration(labelText: 'Username'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _passwordController,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Password'),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () {
+                  if (_usernameController.text.trim() == 'a' &&
+                      _passwordController.text == 'a') {
+                    setState(() {
+                      _authenticated = true;
+                      _message = null;
+                    });
+                  } else {
+                    setState(() {
+                      _message = 'Incorrect username or password.';
+                      _messageIsError = true;
+                    });
+                  }
+                },
+                child: const Text('Open admin'),
+              ),
+              if (_message != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  _message!,
+                  style: TextStyle(
+                    color:
+                        _messageIsError ? Colors.redAccent : Colors.greenAccent,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ],
           ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: Size.fromHeight(_loading ? 2 : 0),
-          child: _loading
-              ? LinearProgressIndicator(
-                  value: _progress <= 0 || _progress >= 1 ? null : _progress,
-                  minHeight: 2,
-                )
-              : const SizedBox.shrink(),
         ),
       ),
-      body: SafeArea(
-        top: false,
-        child: WebViewWidget(controller: _controller),
-      ),
+    );
+  }
+
+  Widget _buildMenu(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.all(24),
+      children: [
+        const Text(
+          'Admin tools',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 24,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Use worker setup here for adding users and enrolling faces. Use the dashboard for times, leave, holidays, and reports.',
+          style: TextStyle(color: Colors.white70),
+        ),
+        const SizedBox(height: 20),
+        FilledButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const WorkerSetupScreen()),
+            );
+          },
+          icon: const Icon(Icons.badge_outlined),
+          label: const Text('Worker setup'),
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
+            );
+          },
+          icon: const Icon(Icons.dashboard_outlined),
+          label: const Text('Open full dashboard'),
+        ),
+      ],
     );
   }
 }
