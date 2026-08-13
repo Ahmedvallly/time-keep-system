@@ -1,402 +1,139 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_tts/flutter_tts.dart';
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:webview_flutter/webview_flutter.dart';
-import 'package:webview_flutter_android/webview_flutter_android.dart';
 
-const String defaultApiBaseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'https://time-keep-system.onrender.com',
-);
+import 'scanner/scan_flow.dart';
+import 'ui/admin_screen.dart';
+import 'ui/scanner_screen.dart';
 
-void main() {
-  runApp(const TimeKeepMobileApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+  final cameras = await availableCameras();
+  runApp(TimeKeepNativeApp(cameras: cameras));
 }
 
-class TimeKeepMobileApp extends StatelessWidget {
-  const TimeKeepMobileApp({super.key});
+class TimeKeepNativeApp extends StatefulWidget {
+  const TimeKeepNativeApp({super.key, required this.cameras});
+
+  final List<CameraDescription> cameras;
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Time Keep Mobile',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF0B6E4F),
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-      ),
-      home: const AppShellScreen(),
-    );
-  }
+  State<TimeKeepNativeApp> createState() => _TimeKeepNativeAppState();
 }
 
-class AppShellScreen extends StatefulWidget {
-  const AppShellScreen({super.key});
+class _TimeKeepNativeAppState extends State<TimeKeepNativeApp> {
+  static const MethodChannel _ttsChannel = MethodChannel(
+    'com.timekeepsystem.mobile/tts',
+  );
 
-  @override
-  State<AppShellScreen> createState() => _AppShellScreenState();
-}
-
-class _AppShellScreenState extends State<AppShellScreen> {
-  late final WebViewController _controller;
-  late final FlutterTts _flutterTts;
-  Timer? _versionTimer;
-  AppShellConfig? _config;
-  Object? _error;
-  bool _isLoading = true;
-  bool _isRefreshing = false;
+  late final ScanFlowController _scanner;
+  String? _startupError;
+  bool _adminOpen = false;
 
   @override
   void initState() {
     super.initState();
-    _flutterTts = FlutterTts();
-    _controller = WebViewController();
-    _configureWebViewController(_controller);
-    unawaited(_configureTextToSpeech());
+    _scanner = ScanFlowController(widget.cameras);
+    _scanner.onAnnouncement = _speak;
+    unawaited(_bootstrap());
+  }
 
-    unawaited(_loadInitialConfig());
+  Future<void> _bootstrap() async {
+    try {
+      final cameraPermission = await Permission.camera.request();
+      if (!cameraPermission.isGranted) {
+        throw Exception('Camera permission was denied.');
+      }
+      await _scanner.init();
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          _startupError = '$error';
+        });
+      }
+    }
+  }
+
+  Future<void> _speak(String message) async {
+    if (message.trim().isEmpty) {
+      return;
+    }
+    try {
+      await _ttsChannel.invokeMethod<void>('speak', message.trim());
+    } catch (_) {
+      // Keep scanning even if speech is unavailable on the device.
+    }
+  }
+
+  Future<void> _openAdmin() async {
+    if (_adminOpen) {
+      return;
+    }
+    await _scanner.pause();
+    if (mounted) {
+      setState(() {
+        _adminOpen = true;
+      });
+    }
+  }
+
+  Future<void> _closeAdmin() async {
+    await _scanner.refreshEmployees();
+    await _scanner.resume();
+    if (mounted) {
+      setState(() {
+        _adminOpen = false;
+      });
+    }
   }
 
   @override
   void dispose() {
-    _versionTimer?.cancel();
-    unawaited(_flutterTts.stop());
+    _scanner.dispose();
+    unawaited(_ttsChannel.invokeMethod<void>('stop'));
     super.dispose();
   }
 
-  Future<void> _loadInitialConfig() async {
-    try {
-      await _ensureCameraPermission();
-      final config = await fetchAppShellConfig();
-      await _controller.loadRequest(Uri.parse(config.mobileUrl));
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _config = config;
-        _error = null;
-      });
-      _startVersionPolling(config.refreshIntervalMs);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _error = error;
-        _isLoading = false;
-      });
-    }
-  }
-
-  void _startVersionPolling(int refreshIntervalMs) {
-    _versionTimer?.cancel();
-    _versionTimer = Timer.periodic(
-      Duration(milliseconds: refreshIntervalMs),
-      (_) => unawaited(_refreshConfigIfNeeded()),
-    );
-  }
-
-  Future<void> _refreshConfigIfNeeded() async {
-    if (_isRefreshing) {
-      return;
-    }
-
-    _isRefreshing = true;
-    try {
-      final nextConfig = await fetchAppShellConfig();
-      final currentConfig = _config;
-
-      if (currentConfig == null) {
-        _config = nextConfig;
-        return;
-      }
-
-      final versionChanged = nextConfig.version != currentConfig.version;
-      final urlChanged = nextConfig.mobileUrl != currentConfig.mobileUrl;
-
-      if (versionChanged || urlChanged) {
-        await _controller.loadRequest(Uri.parse(nextConfig.mobileUrl));
-      } else {
-        await _controller.reload();
-      }
-
-      if (mounted) {
-        setState(() {
-          _config = nextConfig;
-          _error = null;
-        });
-      } else {
-        _config = nextConfig;
-      }
-    } catch (_) {
-      // Keep the current screen if the version check fails.
-    } finally {
-      _isRefreshing = false;
-    }
-  }
-
-  Future<void> _forceRefresh() async {
-    setState(() {
-      _isLoading = true;
-      _error = null;
-    });
-
-    try {
-      await _ensureCameraPermission();
-      final nextConfig = await fetchAppShellConfig();
-      await _controller.loadRequest(Uri.parse(nextConfig.mobileUrl));
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _config = nextConfig;
-      });
-      _startVersionPolling(nextConfig.refreshIntervalMs);
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _error = error;
-        _isLoading = false;
-      });
-    }
-  }
-
-  void _configureWebViewController(WebViewController controller) {
-    controller
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..addJavaScriptChannel(
-        'nativeTts',
-        onMessageReceived: (JavaScriptMessage message) {
-          unawaited(_speakGreeting(message.message));
-        },
-      )
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (_) {
-            if (mounted) {
-              setState(() {
-                _isLoading = true;
-              });
-            }
-          },
-          onPageFinished: (_) {
-            if (mounted) {
-              setState(() {
-                _isLoading = false;
-              });
-            }
-          },
-          onWebResourceError: (error) {
-            if (mounted) {
-              setState(() {
-                _error = error.description;
-                _isLoading = false;
-              });
-            }
-          },
-        ),
-      );
-
-    final platformController = controller.platform;
-    if (platformController is AndroidWebViewController) {
-      AndroidWebViewController.enableDebugging(true);
-      platformController.setMediaPlaybackRequiresUserGesture(false);
-      platformController.setOnPlatformPermissionRequest(
-        (PlatformWebViewPermissionRequest request) async {
-          final status = await _ensureCameraPermission();
-          if (status.isGranted) {
-            await request.grant();
-            return;
-          }
-          await request.deny();
-        },
-      );
-    }
-  }
-
-  Future<PermissionStatus> _ensureCameraPermission() async {
-    var status = await Permission.camera.status;
-    if (status.isGranted) {
-      return status;
-    }
-
-    status = await Permission.camera.request();
-    if (status.isGranted) {
-      return status;
-    }
-
-    throw Exception('Camera permission was denied. Allow camera access for the face scanner.');
-  }
-
-  Future<void> _configureTextToSpeech() async {
-    await _flutterTts.awaitSpeakCompletion(true);
-    await _flutterTts.setLanguage('en-ZA');
-    await _flutterTts.setPitch(1.0);
-    await _flutterTts.setSpeechRate(0.45);
-    await _flutterTts.setVolume(1.0);
-  }
-
-  Future<void> _speakGreeting(String message) async {
-    final text = message.trim();
-    if (text.isEmpty) {
-      return;
-    }
-
-    await _flutterTts.stop();
-    await _flutterTts.speak(text);
-  }
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          if (_error != null && _config == null)
-            _ErrorState(
-              message: _error.toString(),
-              onRetry: _forceRefresh,
-            )
-          else
-            WebViewWidget(controller: _controller),
-          if (_isLoading)
-            const LinearProgressIndicator(minHeight: 3),
-          SafeArea(
-            child: Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: IconButton.filledTonal(
-                  tooltip: 'Refresh',
-                  onPressed: _forceRefresh,
-                  icon: const Icon(Icons.refresh),
+    return MaterialApp(
+      title: 'Time Keep Native',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF0B0D10),
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFF2F6BFF),
+          surface: Color(0xFF0E1116),
+        ),
+        useMaterial3: true,
+      ),
+      home: _startupError != null
+          ? Scaffold(
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    _startupError!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white70),
+                  ),
                 ),
               ),
-            ),
-          ),
-        ],
-      ),
+            )
+          : _adminOpen
+              ? AdminScreen(onClose: _closeAdmin)
+              : ScannerScreen(
+                  controller: _scanner,
+                  onAdminRequested: _openAdmin,
+                ),
     );
   }
-}
-
-class _ErrorState extends StatelessWidget {
-  const _ErrorState({
-    required this.message,
-    required this.onRetry,
-  });
-
-  final String message;
-  final Future<void> Function() onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              'The app shell could not reach the hosted mobile screen.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            FilledButton(
-              onPressed: onRetry,
-              child: const Text('Retry'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class AppShellConfig {
-  AppShellConfig({
-    required this.version,
-    required this.mobileUrl,
-    required this.refreshIntervalMs,
-  });
-
-  final String version;
-  final String mobileUrl;
-  final int refreshIntervalMs;
-
-  factory AppShellConfig.fromJson(Map<String, dynamic> json) {
-    return AppShellConfig(
-      version: json['version'] as String? ?? 'unknown',
-      mobileUrl: json['mobileUrl'] as String? ?? '',
-      refreshIntervalMs: json['refreshIntervalMs'] as int? ?? 300000,
-    );
-  }
-}
-
-Future<AppShellConfig> fetchAppShellConfig() async {
-  final baseUri = Uri.parse(defaultApiBaseUrl);
-  final configUri = baseUri.replace(
-    path: '${baseUri.path.replaceFirst(RegExp(r'/$'), '')}/api/app-shell-config',
-  );
-
-  final client = HttpClient();
-  try {
-    final request = await client.getUrl(configUri);
-    final response = await request.close();
-    final body = await utf8.decodeStream(response);
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw HttpException(
-        'Config request failed with status ${response.statusCode}',
-        uri: configUri,
-      );
-    }
-
-    final json = jsonDecode(body) as Map<String, dynamic>;
-    final config = AppShellConfig.fromJson(json);
-    if (config.mobileUrl.isEmpty) {
-      throw const FormatException('The app shell config did not include a mobile URL.');
-    }
-    return AppShellConfig(
-      version: config.version,
-      mobileUrl: normalizeMobileUrl(config.mobileUrl),
-      refreshIntervalMs: config.refreshIntervalMs,
-    );
-  } finally {
-    client.close(force: true);
-  }
-}
-
-String normalizeMobileUrl(String url) {
-  final uri = Uri.parse(url);
-  if (uri.scheme == 'http' && !_isLocalHost(uri.host)) {
-    return uri.replace(scheme: 'https').toString();
-  }
-  return url;
-}
-
-bool _isLocalHost(String host) {
-  final value = host.toLowerCase();
-  return value == 'localhost' || value == '127.0.0.1' || value == '::1';
 }

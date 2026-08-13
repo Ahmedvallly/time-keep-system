@@ -9,6 +9,17 @@
   --danger: #992d2d;
   --line: #d8ccb7;
   --shadow: 0 18px 50px rgba(24, 35, 15, 0.08);
+  --mobile-bg-top: #08131f;
+  --mobile-bg-mid: #10263b;
+  --mobile-bg-bottom: #f0ebe3;
+  --mobile-panel: rgba(255, 251, 245, 0.9);
+  --mobile-panel-strong: rgba(255, 255, 255, 0.96);
+  --mobile-line: rgba(20, 47, 68, 0.12);
+  --mobile-shadow: 0 22px 55px rgba(5, 16, 29, 0.18);
+  --mobile-highlight: #ff8a3d;
+  --mobile-highlight-strong: #e96e1e;
+  --mobile-ink: #13202d;
+  --mobile-muted: #617180;
 }
 
 * {
@@ -293,9 +304,11 @@ tbody tr:last-child td {
 
 .mobile-body {
   background:
-    radial-gradient(circle at top, rgba(47, 93, 80, 0.22), transparent 24%),
-    linear-gradient(180deg, #dfd1b4 0%, #f7f0e3 36%, #fbf7ef 100%);
+    radial-gradient(circle at top left, rgba(255, 138, 61, 0.24), transparent 22%),
+    radial-gradient(circle at top right, rgba(70, 177, 255, 0.2), transparent 20%),
+    linear-gradient(180deg, var(--mobile-bg-top) 0%, var(--mobile-bg-mid) 19%, #d9d6cf 19.1%, #f8f5ef 100%);
   --mobile-topbar-offset: 76px;
+  color: var(--mobile-ink);
 }
 
 .mobile-layout {
@@ -312,8 +325,9 @@ tbody tr:last-child td {
   position: relative;
   min-height: 100vh;
   background:
-    radial-gradient(circle at top, rgba(68, 178, 238, 0.22), transparent 34%),
-    linear-gradient(180deg, #07131b 0%, #0b1722 46%, #061018 100%);
+    radial-gradient(circle at top, rgba(255, 138, 61, 0.24), transparent 28%),
+    radial-gradient(circle at 80% 18%, rgba(68, 178, 238, 0.18), transparent 22%),
+    linear-gradient(180deg, #06111c 0%, #0a1724 44%, #050c14 100%);
 }
 
 .mobile-kiosk-login {
@@ -331,10 +345,11 @@ tbody tr:last-child td {
   border-radius: 999px;
   text-decoration: none;
   color: #fffaf1;
-  background: rgba(24, 35, 15, 0.52);
-  border: 1px solid rgba(255, 250, 241, 0.18);
+  background: rgba(8, 20, 32, 0.68);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   backdrop-filter: blur(10px);
   font-size: 0.84rem;
+  letter-spacing: 0.04em;
 }
 
 .mobile-kiosk-stage {
@@ -354,8 +369,8 @@ tbody tr:last-child td {
   width: 100vw;
   height: 100dvh;
   min-height: 100dvh;
-  object-fit: cover;
-  background: transparent;
+  object-fit: contain;
+  background: #050c14;
 }
 
 .mobile-kiosk-overlay {
@@ -396,9 +411,10 @@ tbody tr:last-child td {
   gap: 6px;
   padding: 14px 16px;
   border-radius: 18px;
-  background: rgba(24, 35, 15, 0.42);
-  border: 1px solid rgba(255, 250, 241, 0.12);
+  background: rgba(8, 20, 32, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(12px);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.22);
 }
 
 .mobile-kiosk-copy .message,
@@ -422,10 +438,10 @@ tbody tr:last-child td {
   gap: 4px;
   padding: 16px 18px;
   border-radius: 22px;
-  background: rgba(255, 250, 241, 0.94);
-  color: var(--accent-strong);
-  border: 1px solid rgba(255, 250, 241, 0.32);
-  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.24);
+  background: rgba(255, 250, 241, 0.96);
+  color: #162636;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  box-shadow: 0 24px 52px rgba(0, 0, 0, 0.26);
 }
 
 .mobile-kiosk-banner strong {
@@ -437,7 +453,7 @@ tbody tr:last-child td {
 }
 
 .mobile-shell {
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(18px);
 }
 
 .mobile-topbar {
@@ -449,10 +465,10 @@ tbody tr:last-child td {
   z-index: 20;
   margin-bottom: 0;
   padding: 6px 8px 8px;
-  border: 1px solid rgba(216, 204, 183, 0.9);
-  border-radius: 0 0 16px 16px;
-  background: rgba(255, 250, 241, 0.97);
-  box-shadow: var(--shadow);
+  border: 1px solid rgba(255, 255, 255, 0.36);
+  border-radius: 0 0 20px 20px;
+  background: linear-gradient(180deg, rgba(255, 251, 245, 0.98), rgba(245, 239, 231, 0.94));
+  box-shadow: var(--mobile-shadow);
 }
 
 .mobile-topbar-collapsed {
@@ -496,17 +512,53 @@ tbody tr:last-child td {
 
 .mobile-topbar-body {
   display: grid;
-  gap: 8px;
+  gap: 10px;
+}
+
+.mobile-topbar-intro {
+  display: grid;
+  gap: 4px;
+  padding: 4px 6px 0;
+}
+
+.mobile-topbar-intro h1 {
+  max-width: none;
+  margin: 0;
+  font-size: clamp(1.35rem, 5vw, 1.8rem);
+  line-height: 1.08;
+  color: #112336;
+}
+
+.mobile-topbar-intro p {
+  margin: 0;
+  color: var(--mobile-muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.mobile-eyebrow {
+  color: #d85f17;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  font-size: 0.7rem;
+  font-weight: bold;
+}
+
+.mobile-toolbar-panel {
+  padding: 10px;
+  border-radius: 16px;
+  background: rgba(19, 47, 71, 0.05);
+  border: 1px solid rgba(19, 47, 71, 0.08);
 }
 
 .mobile-link {
-  color: var(--accent-strong);
+  color: #17314a;
   text-decoration: none;
   white-space: nowrap;
   padding: 6px 9px;
   border-radius: 999px;
-  background: rgba(47, 93, 80, 0.08);
-  border: 1px solid rgba(47, 93, 80, 0.12);
+  background: rgba(70, 177, 255, 0.1);
+  border: 1px solid rgba(70, 177, 255, 0.14);
   font-size: 0.78rem;
 }
 
@@ -539,15 +591,15 @@ tbody tr:last-child td {
   gap: 4px;
   padding: 3px;
   border-radius: 14px;
-  background: rgba(47, 93, 80, 0.06);
-  border: 1px solid rgba(47, 93, 80, 0.08);
+  background: rgba(19, 47, 71, 0.06);
+  border: 1px solid rgba(19, 47, 71, 0.08);
 }
 
 .mobile-tab {
   min-height: 36px;
   padding: 8px 6px;
   border-radius: 10px;
-  color: var(--accent-strong);
+  color: #17314a;
   background: transparent;
   border: 0;
   font-size: 0.78rem;
@@ -556,8 +608,8 @@ tbody tr:last-child td {
 }
 
 .mobile-tab.is-active {
-  background: var(--accent);
-  color: #fffaf1;
+  background: linear-gradient(135deg, #17314a, #23557d);
+  color: #fffdf8;
 }
 
 .mobile-panel-stack {
@@ -595,6 +647,7 @@ tbody tr:last-child td {
 .mobile-home-grid {
   display: grid;
   gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .mobile-home-section {
@@ -629,9 +682,9 @@ tbody tr:last-child td {
 .mobile-row,
 .mobile-edit-card,
 .mobile-data-card {
-  background: color-mix(in srgb, var(--panel) 88%, white);
-  border: 1px solid var(--line);
-  box-shadow: var(--shadow);
+  background: linear-gradient(180deg, rgba(255, 251, 245, 0.97), rgba(248, 243, 235, 0.92));
+  border: 1px solid var(--mobile-line);
+  box-shadow: var(--mobile-shadow);
 }
 
 .mobile-stat {
@@ -661,9 +714,12 @@ tbody tr:last-child td {
 }
 
 .mobile-card {
-  padding: 14px;
+  padding: 16px;
   margin-bottom: 12px;
-  border-radius: 20px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, var(--mobile-panel-strong), rgba(247, 242, 234, 0.92));
+  border: 1px solid rgba(255, 255, 255, 0.54);
+  box-shadow: var(--mobile-shadow);
 }
 
 .mobile-card-head {
@@ -674,15 +730,44 @@ tbody tr:last-child td {
 
 .mobile-card-head h2 {
   margin-bottom: 0;
-  font-size: 1.1rem;
+  font-size: 1.16rem;
+  color: #14283a;
 }
 
 .mobile-card-head p {
   font-size: 0.92rem;
+  color: var(--mobile-muted);
 }
 
 .mobile-feature-card {
-  background: linear-gradient(180deg, rgba(47, 93, 80, 0.12), rgba(255, 250, 241, 0.98));
+  background:
+    radial-gradient(circle at top right, rgba(255, 138, 61, 0.16), transparent 28%),
+    linear-gradient(180deg, rgba(26, 52, 79, 0.08), rgba(255, 250, 241, 0.98));
+}
+
+.mobile-worker-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.mobile-worker-focus-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.mobile-worker-focus-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--mobile-highlight), #44b2ee);
+}
+
+.mobile-worker-focus-card.is-guided-focus {
+  border-color: rgba(255, 138, 61, 0.66);
+  box-shadow: 0 0 0 3px rgba(255, 138, 61, 0.18), var(--mobile-shadow);
 }
 
 .mobile-scanner-card {
@@ -697,10 +782,14 @@ tbody tr:last-child td {
   display: grid;
   gap: 10px;
   margin-bottom: 12px;
+  padding: 12px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(8, 20, 32, 0.06), rgba(8, 20, 32, 0.02));
+  border: 1px solid rgba(19, 47, 71, 0.08);
 }
 
 .has-mobile-camera-modal {
-  overflow: hidden;
+  overflow: auto;
 }
 
 .mobile-worker-camera-panel-fullscreen {
@@ -724,14 +813,16 @@ tbody tr:last-child td {
   position: relative;
   overflow: hidden;
   border-radius: 18px;
-  background: #101510;
+  background: #0b1620;
   min-height: 320px;
   margin-bottom: 12px;
-  border: 1px solid rgba(216, 204, 183, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 
 .mobile-camera-shell-compact {
   min-height: 260px;
+  max-height: min(56vh, 420px);
 }
 
 .mobile-camera-shell-tall {
@@ -752,6 +843,7 @@ tbody tr:last-child td {
   min-height: inherit;
   object-fit: contain;
   transform: scaleX(-1);
+  background: #050c14;
 }
 
 .mobile-camera-overlay {
@@ -764,10 +856,10 @@ tbody tr:last-child td {
 }
 
 .mobile-camera-target {
-  width: calc(100vw - 18px);
-  height: calc(100vh - 132px);
-  max-width: none;
-  max-height: none;
+  width: min(72vw, 260px);
+  height: min(44vh, 320px);
+  max-width: 78%;
+  max-height: 78%;
   border-radius: 22px;
   border: 1.5px solid rgba(255, 250, 241, 0.58);
   box-shadow: inset 0 0 0 1px rgba(255, 250, 241, 0.12);
@@ -783,6 +875,21 @@ tbody tr:last-child td {
 }
 
 .mobile-worker-camera-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding-top: 4px;
+  background: linear-gradient(180deg, rgba(255, 251, 245, 0), rgba(255, 251, 245, 0.92) 32%);
+}
+
+.mobile-worker-camera-actions-legacy {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.mobile-worker-cta-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
@@ -838,10 +945,10 @@ tbody tr:last-child td {
 .mobile-face-preview {
   display: grid;
   gap: 10px;
-  padding: 12px;
+  padding: 14px;
   border-radius: 16px;
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.58);
+  border: 1px solid rgba(35, 85, 125, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(247, 242, 234, 0.94));
 }
 
 .mobile-face-preview img {
@@ -854,6 +961,31 @@ tbody tr:last-child td {
 .mobile-face-preview p {
   margin: 0;
   color: var(--muted);
+}
+
+.mobile-worker-helper {
+  margin: 0;
+  color: var(--mobile-muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.mobile-worker-camera-copy {
+  align-self: end;
+  display: grid;
+  gap: 6px;
+  margin: auto 10px 10px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(8, 20, 32, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(12px);
+}
+
+.mobile-worker-camera-copy .message,
+.mobile-worker-camera-copy .mobile-empty {
+  margin: 0;
+  color: #fffaf1;
 }
 
 .mobile-card input,
@@ -879,6 +1011,11 @@ tbody tr:last-child td {
   color: var(--accent-strong);
   font-weight: bold;
   margin-bottom: 10px;
+}
+
+.mobile-advanced-fields {
+  display: grid;
+  gap: 10px;
 }
 
 .mobile-list {
@@ -941,8 +1078,8 @@ tbody tr:last-child td {
   justify-content: center;
   border-radius: 999px;
   padding: 6px 10px;
-  background: rgba(47, 93, 80, 0.1);
-  color: var(--accent-strong);
+  background: rgba(255, 138, 61, 0.14);
+  color: #7a3407;
   font-size: 0.82rem;
   white-space: nowrap;
 }
@@ -1177,10 +1314,10 @@ tbody tr:last-child td {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   padding: 6px;
-  border-radius: 22px;
-  background: rgba(255, 250, 241, 0.95);
-  border: 1px solid rgba(47, 93, 80, 0.12);
-  box-shadow: 0 16px 36px rgba(24, 35, 15, 0.16);
+  border-radius: 24px;
+  background: rgba(9, 22, 34, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 18px 38px rgba(3, 9, 17, 0.32);
   backdrop-filter: blur(14px);
 }
 
@@ -1190,14 +1327,15 @@ tbody tr:last-child td {
   border-radius: 14px;
   border: 0;
   background: transparent;
-  color: var(--accent-strong);
+  color: rgba(255, 248, 239, 0.82);
   font-size: 0.8rem;
   box-shadow: none;
 }
 
 .mobile-bottom-tab.is-active {
-  background: var(--accent);
-  color: #fffaf1;
+  background: linear-gradient(135deg, var(--mobile-highlight), var(--mobile-highlight-strong));
+  color: #fffdf8;
+  box-shadow: 0 10px 22px rgba(233, 110, 30, 0.32);
 }
 
 .mobile-time-summary strong {
@@ -1338,6 +1476,7 @@ tbody tr:last-child td {
 
   .mobile-action-grid,
   .mobile-home-grid,
+  .mobile-worker-grid,
   .mobile-filter-grid {
     grid-template-columns: 1fr;
   }
@@ -1384,7 +1523,8 @@ tbody tr:last-child td {
   .mobile-summary-extended,
   .mobile-time-summary-wide,
   .mobile-metric-grid,
-  .mobile-worker-camera-actions {
+  .mobile-worker-camera-actions,
+  .mobile-worker-cta-row {
     grid-template-columns: 1fr;
   }
 
@@ -1397,5 +1537,20 @@ tbody tr:last-child td {
   .mobile-edit-card,
   .mobile-row {
     padding: 12px;
+  }
+
+  .mobile-worker-table,
+  .mobile-worker-table-body {
+    gap: 10px;
+  }
+
+  .mobile-worker-table-head {
+    display: none;
+  }
+
+  .mobile-worker-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 14px;
   }
 }

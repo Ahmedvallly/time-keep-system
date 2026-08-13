@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Time Keep Admin</title>
-    <link rel="stylesheet" href="/styles.css?v=2026.08.11.09">
+    <link rel="stylesheet" href="/styles.css?v=2026.08.13.01">
   </head>
   <body class="mobile-body">
     <main class="mobile-layout">
@@ -25,9 +25,16 @@
 
       <section id="mobileAdminApp" hidden>
         <header class="mobile-topbar mobile-shell">
-          <div class="mobile-toolbar">
-            <label class="month-label" for="mobileMonthPicker">Month</label>
-            <input id="mobileMonthPicker" type="month">
+          <div class="mobile-topbar-body">
+            <div class="mobile-topbar-intro">
+              <span class="mobile-eyebrow">Yabil workforce</span>
+              <h1>Control center</h1>
+              <p>Manage workers, time, leave, and reports from one phone-friendly dashboard.</p>
+            </div>
+            <div class="mobile-toolbar mobile-toolbar-panel">
+              <label class="month-label" for="mobileMonthPicker">Month</label>
+              <input id="mobileMonthPicker" type="month">
+            </div>
           </div>
         </header>
 
@@ -67,58 +74,35 @@
                 <h2>Add worker with face</h2>
                 <p>Capture one front selfie before saving the worker.</p>
               </div>
-              <div class="mobile-worker-setup-order">
-                <span class="mobile-badge">Step 1</span>
-                <strong>Add picture first</strong>
-              </div>
-              <button class="button" id="mobileWorkerCameraToggleButton" type="button">Add photo</button>
-              <canvas id="mobileWorkerCanvas" hidden></canvas>
-              <form id="mobileWorkerForm" class="stack-form">
-                <div class="mobile-worker-setup-order">
-                  <span class="mobile-badge">Step 2</span>
-                  <strong>Add worker details</strong>
-                </div>
-                <label class="mobile-field">
-                  <span>Name of worker</span>
-                  <input name="name" id="mobileWorkerName" placeholder="Worker name" required>
-                </label>
-                <label class="mobile-field">
-                  <span>Role of worker</span>
-                  <select name="role" id="mobileWorkerRole" required>
-                    <option value="general">General</option>
-                    <option value="driver">Driver</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </label>
-                <label class="mobile-field">
-                  <span>Hours of worker</span>
-                  <input name="monthlyTargetHours" id="mobileWorkerTargetHours" type="number" min="0" step="0.25" value="182" placeholder="Hours worked target" required>
-                </label>
-                <label class="mobile-field">
-                  <span>Employee code</span>
-                  <input name="code" id="mobileWorkerCode" placeholder="Employee code" required>
-                </label>
-                <div id="mobileFacePreview" class="mobile-face-preview mobile-empty">No face captured yet.</div>
-                <details class="mobile-advanced-toggle">
-                  <summary>More options</summary>
-                  <textarea name="notes" id="mobileWorkerNotes" rows="3" placeholder="Notes"></textarea>
-                </details>
-                <button class="button" type="submit">Save worker</button>
-                <p id="mobileWorkerMessage" class="message"></p>
-                <button class="button secondary small-button" id="mobileUndoWorkerDeleteButton" type="button" hidden>Undo deleted worker</button>
-              </form>
-              <div class="mobile-worker-camera-panel mobile-worker-camera-panel-fullscreen" id="mobileWorkerCameraPanel" hidden>
-                <div class="mobile-camera-shell mobile-camera-shell-fullscreen">
+              <button class="button secondary" id="mobileWorkerCameraToggleButton" type="button">Add photo</button>
+              <div class="mobile-worker-camera-panel" id="mobileWorkerCameraPanel" hidden>
+                <div class="mobile-camera-shell mobile-camera-shell-compact">
                   <video id="mobileWorkerVideo" class="mobile-camera-video" autoplay muted playsinline></video>
                   <div class="mobile-camera-overlay">
                     <div class="mobile-camera-target"></div>
                   </div>
                 </div>
-                <div class="mobile-worker-camera-actions">
-                  <button class="button" id="mobileCaptureFaceButton" type="button">Capture face</button>
+                <div class="mobile-worker-camera-actions mobile-worker-camera-actions-legacy">
+                  <button class="button secondary" id="mobileCaptureFaceButton" type="button">Capture face</button>
                   <button class="button secondary" id="mobileWorkerCameraCloseButton" type="button">Close photo</button>
                 </div>
               </div>
+              <canvas id="mobileWorkerCanvas" hidden></canvas>
+              <form id="mobileWorkerForm" class="stack-form">
+                <input name="name" id="mobileWorkerName" placeholder="Worker name" required>
+                <input name="code" id="mobileWorkerCode" placeholder="Employee code" required>
+                <select name="role" id="mobileWorkerRole" required>
+                  <option value="general">General</option>
+                  <option value="driver">Driver</option>
+                  <option value="admin">Admin</option>
+                </select>
+                <input name="monthlyTargetHours" id="mobileWorkerTargetHours" type="number" min="0" step="0.25" value="182" placeholder="Hours worked target" required>
+                <div id="mobileFacePreview" class="mobile-face-preview mobile-empty">No face captured yet.</div>
+                <textarea name="notes" id="mobileWorkerNotes" rows="3" placeholder="Notes"></textarea>
+                <button class="button" type="submit">Save worker</button>
+                <p id="mobileWorkerMessage" class="message"></p>
+                <button class="button secondary small-button" id="mobileUndoWorkerDeleteButton" type="button" hidden>Undo deleted worker</button>
+              </form>
             </section>
 
             <section class="card mobile-card mobile-shell">
@@ -128,6 +112,7 @@
               </div>
               <div id="mobileWorkers" class="mobile-list"></div>
             </section>
+
           </section>
 
           <section class="mobile-panel" data-tab-panel="times">
@@ -254,7 +239,7 @@
       </section>
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <script src="/mobile-admin.js?v=2026.08.11.09"></script>
+    <script src="/vendor/face-api.min.js?v=2026.08.13.01"></script>
+    <script src="/mobile-admin.js?v=2026.08.13.01"></script>
   </body>
 </html>

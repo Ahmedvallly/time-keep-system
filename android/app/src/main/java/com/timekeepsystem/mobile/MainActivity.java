@@ -1,15 +1,23 @@
 package com.timekeepsystem.mobile;
 
+import android.Manifest;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.speech.tts.TextToSpeech;
 import android.webkit.JavascriptInterface;
+import android.webkit.PermissionRequest;
+import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 
 import com.getcapacitor.BridgeActivity;
 
@@ -23,6 +31,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 public class MainActivity extends BridgeActivity {
+    private static final int CAMERA_PERMISSION_REQUEST_CODE = 4101;
+    private static final boolean USE_HOSTED_APP_SHELL = false;
     private static final String APP_SHELL_CONFIG_URL = "https://time-keep-system.onrender.com/api/app-shell-config";
     private static final long APP_SHELL_REFRESH_DEBOUNCE_MS = 15000;
     private static final String PREFS_NAME = "time_keep_mobile";
@@ -34,6 +44,7 @@ public class MainActivity extends BridgeActivity {
     private TextToSpeech textToSpeech;
     private boolean ttsReady = false;
     private String pendingSpeechMessage = null;
+    private PermissionRequest pendingCameraPermissionRequest = null;
     private long lastAppShellRefreshAt = 0L;
     private long pausedAt = 0L;
 
@@ -58,14 +69,16 @@ public class MainActivity extends BridgeActivity {
         super.onCreate(savedInstanceState);
         initializeNativeTts();
         configureWebViewBridges();
-        refreshHostedAppShell(true);
+        if (USE_HOSTED_APP_SHELL) {
+            refreshHostedAppShell(true);
+        }
     }
 
     @Override
     public void onResume() {
         super.onResume();
         injectWebEnhancements();
-        if (pausedAt > 0L && System.currentTimeMillis() - pausedAt >= RESUME_REFRESH_THRESHOLD_MS) {
+        if (USE_HOSTED_APP_SHELL && pausedAt > 0L && System.currentTimeMillis() - pausedAt >= RESUME_REFRESH_THRESHOLD_MS) {
             refreshHostedAppShell(false);
         }
         pausedAt = 0L;
@@ -116,12 +129,21 @@ public class MainActivity extends BridgeActivity {
         WebSettings settings = webView.getSettings();
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setDomStorageEnabled(true);
+        settings.setMediaPlaybackRequiresUserGesture(false);
 
         webView.addJavascriptInterface(new NativeTtsBridge(), "nativeTts");
         webView.addJavascriptInterface(new NativeAppBridge(), "nativeApp");
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(PermissionRequest request) {
+                runOnUiThread(() -> handleWebPermissionRequest(request));
+            }
+        });
         webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> openExternalUrl(url));
         handler.postDelayed(webEnhancementTask, 1200);
-        handler.postDelayed(appShellRefreshTask, 300000);
+        if (USE_HOSTED_APP_SHELL) {
+            handler.postDelayed(appShellRefreshTask, 300000);
+        }
     }
 
     private void injectWebEnhancements() {
@@ -138,15 +160,15 @@ public class MainActivity extends BridgeActivity {
             "    style.id = 'native-app-enhancements';" +
             "    style.textContent =" +
             "      '#mobileWorkerCameraPanel:not([hidden]){" +
-            "position:fixed!important;inset:0!important;z-index:90!important;" +
-            "padding:max(14px, env(safe-area-inset-top)) 14px calc(14px + env(safe-area-inset-bottom))!important;" +
-            "margin:0!important;display:grid!important;align-content:stretch!important;" +
-            "background:rgba(6,16,24,0.97)!important;}' +" +
+            "position:relative!important;inset:auto!important;z-index:auto!important;" +
+            "padding:12px!important;margin:0 0 12px!important;display:grid!important;align-content:start!important;" +
+            "background:linear-gradient(180deg, rgba(8,20,32,0.06), rgba(8,20,32,0.02))!important;" +
+            "border:1px solid rgba(19,47,71,0.08)!important;border-radius:18px!important;}' +" +
             "      '#mobileWorkerCameraPanel:not([hidden]) .mobile-camera-shell{" +
-            "min-height:calc(100dvh - 132px)!important;height:calc(100dvh - 132px)!important;" +
-            "margin-bottom:0!important;border-radius:24px!important;}' +" +
+            "min-height:260px!important;max-height:min(56vh,420px)!important;height:auto!important;" +
+            "margin-bottom:12px!important;border-radius:18px!important;}' +" +
             "      '#mobileWorkerCameraPanel:not([hidden]) .mobile-camera-target{" +
-            "width:calc(100vw - 28px)!important;height:calc(100dvh - 156px)!important;}' +" +
+            "width:min(72vw,260px)!important;height:min(44vh,320px)!important;max-width:78%!important;max-height:78%!important;}' +" +
             "      '#mobileWorkerCameraPanel:not([hidden]) .button{" +
             "min-height:50px!important;}';" +
             "    document.head.appendChild(style);" +
@@ -182,6 +204,54 @@ public class MainActivity extends BridgeActivity {
         }
     }
 
+    private void handleWebPermissionRequest(PermissionRequest request) {
+        if (request == null) {
+            return;
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+            request.deny();
+            return;
+        }
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            request.grant(request.getResources());
+            return;
+        }
+
+        if (pendingCameraPermissionRequest != null) {
+            pendingCameraPermissionRequest.deny();
+        }
+
+        pendingCameraPermissionRequest = request;
+        ActivityCompat.requestPermissions(
+            this,
+            new String[]{Manifest.permission.CAMERA},
+            CAMERA_PERMISSION_REQUEST_CODE
+        );
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+
+        if (requestCode != CAMERA_PERMISSION_REQUEST_CODE) {
+            return;
+        }
+
+        if (pendingCameraPermissionRequest == null) {
+            return;
+        }
+
+        boolean granted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+        if (granted) {
+            pendingCameraPermissionRequest.grant(pendingCameraPermissionRequest.getResources());
+        } else {
+            pendingCameraPermissionRequest.deny();
+        }
+        pendingCameraPermissionRequest = null;
+    }
+
     private void speakNative(String message) {
         if (message == null || message.trim().isEmpty()) {
             return;
@@ -197,6 +267,9 @@ public class MainActivity extends BridgeActivity {
     }
 
     private void refreshHostedAppShell(boolean force) {
+        if (!USE_HOSTED_APP_SHELL) {
+            return;
+        }
         long now = System.currentTimeMillis();
         if (!force && now - lastAppShellRefreshAt < APP_SHELL_REFRESH_DEBOUNCE_MS) {
             return;

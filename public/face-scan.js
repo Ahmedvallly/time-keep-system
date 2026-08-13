@@ -1,4 +1,6 @@
-const FACE_MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights";
+const TINY_FACE_MODEL_URL = "/models/tiny_face_detector";
+const FACE_LANDMARK_MODEL_URL = "/models/face_landmark_68_tiny";
+const FACE_RECOGNITION_MODEL_URL = "/models/face_recognition";
 const FACE_MATCH_THRESHOLD = 0.5;
 const FACE_SCAN_INTERVAL_MS = 1400;
 const FACE_SCAN_COOLDOWN_MS = 12000;
@@ -83,9 +85,9 @@ async function ensureFaceModels() {
     faceModelsLoading = (async () => {
       setMessage(faceStatus, "Loading face models...");
       await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL),
-        faceapi.nets.faceLandmark68TinyNet.loadFromUri(FACE_MODEL_URL),
-        faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODEL_URL)
+        faceapi.nets.tinyFaceDetector.loadFromUri(TINY_FACE_MODEL_URL),
+        faceapi.nets.faceLandmark68TinyNet.loadFromUri(FACE_LANDMARK_MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(FACE_RECOGNITION_MODEL_URL)
       ]);
       faceModelsReady = true;
       setMessage(faceStatus, "Face scanner ready.");

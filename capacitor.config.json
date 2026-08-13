@@ -1,9 +1,5 @@
 {
   "appId": "com.timekeepsystem.mobile",
   "appName": "Time Keep Mobile",
-  "webDir": "public",
-  "server": {
-    "url": "https://time-keep-system.onrender.com/mobile.html?v=2026.08.11.06",
-    "cleartext": false
-  }
+  "webDir": "public"
 }

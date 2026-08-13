@@ -1,5 +1,7 @@
 const EVENT_TYPES = ["clock_in", "clock_out"];
-const FACE_MODEL_URL = "https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@master/weights";
+const TINY_FACE_MODEL_URL = "/models/tiny_face_detector";
+const FACE_LANDMARK_MODEL_URL = "/models/face_landmark_68_tiny";
+const FACE_RECOGNITION_MODEL_URL = "/models/face_recognition";
 const ADMIN_USERNAME = "a";
 const ADMIN_PASSWORD = "a";
 const ADMIN_SESSION_KEY = "time-keep-mobile-admin-auth";
@@ -28,6 +30,7 @@ const facePreview = document.getElementById("mobileFacePreview");
 const workerRoleInput = document.getElementById("mobileWorkerRole");
 const workerTargetHoursInput = document.getElementById("mobileWorkerTargetHours");
 const workerNameInput = document.getElementById("mobileWorkerName");
+const workerCodeInput = document.getElementById("mobileWorkerCode");
 const undoWorkerDeleteButton = document.getElementById("mobileUndoWorkerDeleteButton");
 const workersNode = document.getElementById("mobileWorkers");
 const manualForm = document.getElementById("mobileManualForm");
@@ -78,6 +81,7 @@ let latestTimeRows = [];
 let latestHolidayRows = [];
 let latestDashboardWorkers = [];
 let workerCameraOpen = false;
+let lastFaceCaptureError = "";
 let openTimeWorkerKeys = new Set();
 let openTimeDayKeys = new Set();
 let timeViewMode = "today";
@@ -214,18 +218,25 @@ captureFaceButton.addEventListener("click", async () => {
   setMessage(workerMessage, "Capturing photo...");
 
   try {
+    if (!workerCameraOpen) {
+      setWorkerCameraOpen(true);
+      await pause(120);
+    }
     await ensureWorkerCamera();
     const capture = await captureWorkerFace(workerVideo, workerCanvas);
-    capturedFaceDescriptor = Array.isArray(capture.descriptor) ? capture.descriptor : [];
     capturedFacePreviewUrl = capture.previewUrl;
     capturedFacePhotoDataUrl = capture.previewUrl;
+    capturedFaceDescriptor = Array.isArray(capture.descriptor) ? capture.descriptor : [];
+    lastFaceCaptureError = capture.error || "";
     renderFacePreview();
-    setMessage(
-      workerMessage,
-      capturedFaceDescriptor.length === 128
-        ? "Photo captured. Add worker name, role, hours, then save."
-        : "Photo captured. Add worker name, role, hours, then save. Face scanning can be updated later if needed."
-    );
+    setWorkerCameraOpen(false);
+    workerNameInput.focus();
+    workerNameInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (capturedFaceDescriptor.length === 128) {
+      setMessage(workerMessage, "Photo captured. Face profile ready. Now add worker name, employee code, hours, and save.");
+    } else {
+      setMessage(workerMessage, lastFaceCaptureError || "Photo captured. You can save this worker now, and the face profile can be updated after retaking a clearer photo if needed.");
+    }
   } catch (error) {
     setMessage(workerMessage, error.message, true);
   } finally {
@@ -237,14 +248,24 @@ workerForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const formData = new FormData(workerForm);
 
-  if (!capturedFacePhotoDataUrl) {
-    setMessage(workerMessage, "Capture the worker photo before saving.", true);
-    return;
-  }
-
   setMessage(workerMessage, "Saving worker...");
 
   try {
+    if (!capturedFacePhotoDataUrl) {
+      setMessage(workerMessage, "Capture the worker face before saving.", true);
+      return;
+    }
+
+    if (capturedFaceDescriptor.length !== 128) {
+      capturedFaceDescriptor = await buildFaceDescriptorFromPhoto(capturedFacePhotoDataUrl);
+      lastFaceCaptureError = capturedFaceDescriptor.length === 128
+        ? ""
+        : (lastFaceCaptureError || "The photo saved, but the face profile still could not be created from it.");
+      renderFacePreview();
+    }
+
+    const savedWithFaceProfile = capturedFaceDescriptor.length === 128;
+
     const employee = await sendJson("/api/employees", {
       method: "POST",
       body: {
@@ -261,11 +282,18 @@ workerForm.addEventListener("submit", async (event) => {
     workerForm.reset();
     workerRoleInput.value = "general";
     workerTargetHoursInput.value = String(rolePresetHours("general"));
+    workerCodeInput.value = "";
     capturedFaceDescriptor = [];
     capturedFacePreviewUrl = "";
     capturedFacePhotoDataUrl = "";
+    lastFaceCaptureError = "";
     renderFacePreview();
-    setMessage(workerMessage, `Saved ${employee.name}.`);
+    setMessage(
+      workerMessage,
+      savedWithFaceProfile
+        ? `Saved ${employee.name} with a face profile.`
+        : `Saved ${employee.name} with the captured photo. Retake the worker photo later to finish the face profile if needed.`
+    );
     await refreshAll();
   } catch (error) {
     setMessage(workerMessage, error.message, true);
@@ -374,7 +402,7 @@ async function unlockAdmin() {
   renderFacePreview();
   if (!refreshTimer) {
     refreshTimer = setInterval(() => {
-      if (timeEditModeEnabled && activeTab === "times") {
+      if ((timeEditModeEnabled && activeTab === "times") || workerCameraOpen) {
         return;
       }
       refreshAll().catch(() => {});
@@ -1231,6 +1259,9 @@ function setWorkerCameraOpen(nextValue) {
 }
 
 async function ensureWorkerCamera() {
+  if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+    throw new Error("This device cannot open the camera here. Use Chrome on the phone and allow camera access.");
+  }
   await startVideoStream(workerVideo);
   await waitForVideoReady(workerVideo);
   await pause(250);
@@ -1278,12 +1309,16 @@ async function ensureFaceModels() {
 
   if (!faceModelsLoading) {
     setMessage(workerMessage, "Loading face detection...");
-    faceModelsLoading = Promise.all([
-      faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL),
-      faceapi.nets.faceLandmark68TinyNet.loadFromUri(FACE_MODEL_URL),
-      faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODEL_URL)
-    ]).then(() => {
+    faceModelsLoading = withTimeout(Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(TINY_FACE_MODEL_URL),
+      faceapi.nets.faceLandmark68TinyNet.loadFromUri(FACE_LANDMARK_MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(FACE_RECOGNITION_MODEL_URL)
+    ]), 12000, "Face detection took too long to load.").then(() => {
       faceModelsReady = true;
+    }).catch((error) => {
+      faceModelsLoading = null;
+      const reason = error && error.message ? error.message : "Face models could not be loaded.";
+      throw new Error(`${reason} Check internet access on the phone and try again.`);
     });
   }
 
@@ -1291,26 +1326,48 @@ async function ensureFaceModels() {
 }
 
 async function captureWorkerFace(video, canvas) {
-  captureVideoFrame(video, canvas);
-  const previewUrl = canvas.toDataURL("image/jpeg", 0.9);
-  let descriptor = [];
-
-  try {
+  return withTimeout((async () => {
+    await waitForVideoReady(video);
+    await pause(180);
+    captureVideoFrame(video, canvas);
+    const previewUrl = canvas.toDataURL("image/jpeg", 0.9);
     await ensureFaceModels();
-    const liveDetection = await tryDetectFaceDescriptor(video);
-    if (liveDetection?.descriptor?.descriptor) {
-      descriptor = Array.from(liveDetection.descriptor.descriptor);
-    } else {
-      const imageDetection = await tryDetectFaceDescriptor(canvas);
-      if (imageDetection?.descriptor?.descriptor) {
-        descriptor = Array.from(imageDetection.descriptor.descriptor);
+
+    let descriptor = [];
+    let error = "";
+
+    try {
+      const liveDetection = await tryDetectFaceDescriptor(video);
+      if (liveDetection?.descriptor?.descriptor) {
+        descriptor = Array.from(liveDetection.descriptor.descriptor);
+      } else {
+        const imageDetection = await tryDetectFaceDescriptor(canvas);
+        if (imageDetection?.descriptor?.descriptor) {
+          descriptor = Array.from(imageDetection.descriptor.descriptor);
+        }
       }
+    } catch (captureError) {
+      error = captureError && captureError.message ? captureError.message : "Face profile could not be created from this photo.";
     }
-  } catch {
-    descriptor = [];
+
+    if (!descriptor.length && !error) {
+      error = "Face detected poorly or not at all. Keep one face centered in the frame, move closer, and try again.";
+    }
+
+    return { descriptor, previewUrl, error };
+  })(), 10000, "Capture timed out. Keep one face centered and try again.");
+}
+
+async function buildFaceDescriptorFromPhoto(dataUrl) {
+  await ensureFaceModels();
+
+  const image = await loadImageFromDataUrl(dataUrl);
+  const detection = await tryDetectFaceDescriptor(image);
+  if (detection?.descriptor?.descriptor) {
+    return Array.from(detection.descriptor.descriptor);
   }
 
-  return { descriptor, previewUrl };
+  return [];
 }
 
 async function tryDetectFaceDescriptor(source) {
@@ -1349,17 +1406,44 @@ function pause(ms) {
   });
 }
 
+function loadImageFromDataUrl(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("The captured photo could not be read."));
+    image.src = dataUrl;
+  });
+}
+
+function withTimeout(promise, ms, message) {
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      reject(new Error(message));
+    }, ms);
+
+    promise
+      .then((value) => {
+        clearTimeout(timeoutId);
+        resolve(value);
+      })
+      .catch((error) => {
+        clearTimeout(timeoutId);
+        reject(error);
+      });
+  });
+}
+
 function renderFacePreview() {
   if (!capturedFacePreviewUrl) {
     facePreview.className = "mobile-face-preview mobile-empty";
-    facePreview.textContent = "No worker photo captured yet.";
+    facePreview.textContent = "No face captured yet.";
     return;
   }
 
   facePreview.className = "mobile-face-preview";
   facePreview.innerHTML = `
     <img src="${capturedFacePreviewUrl}" alt="Captured worker face">
-    <p>${capturedFaceDescriptor.length === 128 ? "Photo captured and ready to save." : "Photo captured and ready to save worker details."}</p>
+    <p>${capturedFaceDescriptor.length === 128 ? "Photo captured and ready to save." : escapeHtml(lastFaceCaptureError || "Photo captured. Retake it if the face profile was not created.")}</p>
   `;
 }
 
@@ -1381,8 +1465,14 @@ async function waitForVideoReady(video) {
     return;
   }
 
-  await new Promise((resolve) => {
+  await new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      video.removeEventListener("loadeddata", onReady);
+      video.removeEventListener("canplay", onReady);
+      reject(new Error("Camera opened but no video frame arrived. Close the photo panel, allow camera permission, and try again."));
+    }, 6000);
     const onReady = () => {
+      clearTimeout(timeoutId);
       video.removeEventListener("loadeddata", onReady);
       video.removeEventListener("canplay", onReady);
       resolve();

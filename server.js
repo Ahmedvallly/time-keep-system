@@ -20,7 +20,7 @@ const EMPLOYEE_ROLES = {
   driver: { label: "Driver", monthlyTargetHours: 210 },
   admin: { label: "Admin", monthlyTargetHours: 176 }
 };
-const MOBILE_APP_VERSION = process.env.MOBILE_APP_VERSION || "2026.08.07.21";
+const MOBILE_APP_VERSION = process.env.MOBILE_APP_VERSION || "2026.08.13.01";
 let readyPromise;
 
 ensureDataFiles();
@@ -1548,8 +1548,8 @@ function normalizeFaceDescriptor(value) {
     .map((entry) => Number(entry))
     .filter((entry) => Number.isFinite(entry));
 
-  if (descriptor.length > 0 && descriptor.length !== 128) {
-    throw httpError(400, "Face descriptor must contain 128 numeric values.");
+  if (descriptor.length > 0 && descriptor.length !== 128 && descriptor.length !== 512) {
+    throw httpError(400, "Face descriptor must contain either 128 or 512 numeric values.");
   }
 
   return descriptor;

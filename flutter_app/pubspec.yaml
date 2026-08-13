@@ -10,7 +10,11 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  flutter_tts: ^4.0.2
+  camera: ^0.10.6
+  dio: ^5.4.3
+  google_mlkit_face_detection: ^0.11.0
+  onnxruntime:
+    path: vendor/onnxruntime
   permission_handler: ^11.3.1
   webview_flutter: ^4.8.0
   webview_flutter_android: ^4.7.0
@@ -22,3 +26,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/models/w600k_mbf.onnx
